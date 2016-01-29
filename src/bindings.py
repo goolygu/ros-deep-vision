@@ -9,7 +9,7 @@ class Bindings(object):
         self._key_label_to_tag = {}
         self._key_patterns = key_patterns
         self._cache_keycode_to_tag = {}
-        
+
     def get_tag(self, keycode):
         '''Gets tag for keycode, returns None if no tag found.'''
         if keycode is None:
@@ -21,24 +21,24 @@ class Bindings(object):
 
     def get_tag_from_key_label(self, label):
         '''Get tag using key label, if no match, returns None.'''
-        
+
         return self._key_label_to_tag.get(label, None)
-        
+
     def get_key_label_from_keycode(self, keycode, extra_info = False):
         '''Get tag using keycode, if no match, returns None.'''
-        
+
         label = None
         for mask in reversed(sorted(self._key_patterns.keys())):
             masked_keycode = keycode & mask
             if masked_keycode in self._key_patterns[mask]:
                 label = self._key_patterns[mask][masked_keycode]
                 break
-        
+
         if extra_info:
             return label, [keycode & mask for mask in reversed(sorted(self._key_patterns.keys()))]
         else:
             return label
-    
+
     def add(self, tag, key, help_text):
         self.add_multikey(tag, (key,), help_text)
 
@@ -70,7 +70,7 @@ _.add('help_mode', 'h',
        'Toggle this help screen')
 _.add('stretch_mode', '0',
        'Toggle between cropping and stretching static files to be square')
-_.add('debug_level', '5',
+_.add('debug_level', '7',
        'Cycle debug level between 0 (quiet), 1 (some timing info) and 2 (all timing info)')
 _.add('quit', 'q',
        'Quit')
@@ -123,5 +123,15 @@ _.add('toggle_label_predictions', '8',
        'Turn on or off display of prob label values')
 _.add('toggle_unit_jpgs', '9',
        'Turn on or off display of loaded jpg visualization')
+_.add('toggle_backprop_filter', '1',
+       'Backprop filter')
+_.add('save_descriptor', '2',
+      'Save descriptor')
+_.add('match_descriptor', '3',
+    'Match descriptor')
+_.add('next_descriptor', '4',
+    'Next descriptor')
+_.add('compare_descriptor', '5',
+    'Compare descriptor')
 
 bindings = _

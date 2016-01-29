@@ -46,19 +46,19 @@ def cv2_read_cap_rgb(cap, saveto = None):
     frame = frame[:,:,::-1]   # Convert native OpenCV BGR -> RGB
     return frame
 
-    
+
 def cv2_read_file_rgb(filename):
     im = cv2.imread(filename)
     im = im[:,:,::-1]   # Convert native OpenCV BGR -> RGB
     return im
 
-    
+
 def read_cam_frame(cap, saveto = None):
     #frame = np.array(cv2_read_cap_rgb(cap, saveto = saveto), dtype='float32')
     frame = cv2_read_cap_rgb(cap, saveto = saveto)
     frame = frame[:,::-1,:]  # flip L-R for display
     frame -= frame.min()
-    frame *= (255.0 / (frame.max() + 1e-6))
+    frame = frame * (255.0 / (frame.max() + 1e-6))
     return frame
 
 def crop_to_square(frame):
@@ -81,7 +81,7 @@ def cv2_imshow_rgb(window_name, img):
 def caffe_load_image(filename, color=True, as_uint=False):
     '''
     Copied from Caffe to simplify potential import problems.
-    
+
     Load an image converting from grayscale or alpha as needed.
 
     Take
@@ -117,18 +117,18 @@ def get_tiles_height_width(n_tiles, desired_width = None):
         assert isinstance(width, int)
         height = int(np.ceil(float(n_tiles) / width))
     return height,width
-        
+
 def tile_images(data, padsize = 1, padval = 0, c01 = False, width = None, boost_indiv = 0.0, boost_gamma = 1.0, highlights = None, single_tile = False):
     '''take an array of shape (n, height, width) or (n, height, width, channels)
     and visualize each (height, width) thing in a grid. If width = None, produce
     a square image of size approx. sqrt(n) by sqrt(n), else calculate height given width value.
-    
+
     If highlights is given, it should be a list of length data.shape[0] with each element a color triple or None'''
-    
+
     data = tile_images_normalize(data, c01 = c01, boost_indiv = boost_indiv,  boost_gamma = boost_gamma, single_tile = single_tile)
     (height,width), data = tile_images_make_tiles(data, padsize = padsize, padval = padval, width = width, highlights = highlights)
     return (height,width), data
-    
+
 def tile_images_normalize(data, c01 = False, boost_indiv = 0.0,  boost_gamma = 1.0, single_tile = False, scale_range = 1.0, neg_pos_colors = None):
     data = data.copy()
     if single_tile:
@@ -145,7 +145,7 @@ def tile_images_normalize(data, c01 = False, boost_indiv = 0.0,  boost_gamma = 1
         pos_clr = np.array(pos_clr).reshape((1,3))
         # Keep 0 at 0
         data /= max(data.max(), -data.min()) + 1e-10     # Map data to [-1, 1]
-        
+
         #data += .5 * scale_range  # now in [0, scale_range]
         #assert data.min() >= 0
         #assert data.max() <= scale_range
@@ -179,7 +179,7 @@ def tile_images_normalize(data, c01 = False, boost_indiv = 0.0,  boost_gamma = 1
         data = np.tile(data[:,:,:,np.newaxis], 3)
 
     return data
-        
+
 def tile_images_make_tiles(data, padsize=1, padval=0, width=None, highlights = None):
     height,width = get_tiles_height_width(data.shape[0], desired_width = width)
 
@@ -194,7 +194,7 @@ def tile_images_make_tiles(data, padsize=1, padval=0, width=None, highlights = N
     ##data = np.pad(data, padding, mode=jy_pad_fn)
     #data = np.pad(data, padding, mode=padder.pad_function)
     #print 'padder.calls =', padder.calls
-    
+
     # New new way, two-way padding with highlights
     if highlights is not None:
         assert len(highlights) == data.shape[0]
@@ -216,7 +216,7 @@ def tile_images_make_tiles(data, padsize=1, padval=0, width=None, highlights = N
             if padding[0][1] > 0:
                 data[-padding[0][1]:, :, :, cc] = padval[cc]
             data[:, :padding[1][0],  :, cc] = padval[cc]
-            if padding[1][1] > 0:    
+            if padding[1][1] > 0:
                 data[:, -padding[1][1]:, :, cc] = padval[cc]
             data[:, :, :padding[2][0],  cc] = padval[cc]
             if padding[2][1] > 0:
@@ -231,14 +231,14 @@ def tile_images_make_tiles(data, padsize=1, padval=0, width=None, highlights = N
                 data[ii,:,:padding[2][0],:] = highlight
                 if padding[2][1] > 0:
                     data[ii,:,-padding[2][1]:,:] = highlight
-            
-            
-    
+
+
+
     # tile the filters into an image
     data = data.reshape((height, width) + data.shape[1:]).transpose((0, 2, 1, 3) + tuple(range(4, data.ndim + 1)))
     data = data.reshape((height * data.shape[1], width * data.shape[3]) + data.shape[4:])
     data = data[0:-padsize, 0:-padsize]  # remove excess padding
-    
+
     return (height,width), data
 
 def to_255(vals_01):
@@ -352,7 +352,7 @@ class FormattedString(object):
         self.thick = thick if thick else defaults['thick']
         self.width = width # if None: calculate width automatically
         self.align = align if align else defaults.get('align', 'left')
-        
+
 def cv2_typeset_text(data, lines, loc, between = ' ', string_spacing = 0, line_spacing = 0):
     '''Typesets mutliple strings on multiple lines of text, where each string may have its own formatting.
 
@@ -374,9 +374,9 @@ def cv2_typeset_text(data, lines, loc, between = ' ', string_spacing = 0, line_s
     if not isinstance(lines[0], list):
         # If a single line of text is given as a list of strings, convert to multiline format
         lines = [lines]
-    
+
     locy = loc[1]
-    
+
     for line in lines:
         maxy = 0
         locx = loc[0]
@@ -403,5 +403,29 @@ def cv2_typeset_text(data, lines, loc, between = ' ', string_spacing = 0, line_s
                 locx += boxsize[0]
             locx += string_spacing
         locy += maxy + line_spacing
-        
+
     return locy
+
+def get_relative_location(input_w_h, input_x_y, target_w_h):
+
+    target_x = round((input_x_y[0]+0.5)*float(target_w_h[0])/float(input_w_h[0]))
+    target_y = round((input_x_y[1]+0.5)*float(target_w_h[1])/float(input_w_h[1]))
+    return [target_x, target_y]
+
+def is_masked(input_w_h, input_x_y, mask):
+
+    target_x_y = get_relative_location(input_w_h, input_x_y, mask.shape)
+    # print "target x y", target_x_y
+    # print "mask ", mask.shape
+    if mask[target_x_y[1],target_x_y[0]] == 0:
+        return True
+    else:
+        return False
+
+def depth_to_grayscale(depth):
+    return min(round(depth*255.0/2.0),255)
+
+def convert_depth_image_to_rgb(depth_image):
+    f= np.vectorize(depth_to_grayscale)
+    gray_image = f(depth_image)
+    return np.repeat(gray_image, 3, axis=2)

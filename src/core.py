@@ -19,6 +19,7 @@ except ImportError:
 from misc import WithTimer
 from image_misc import cv2_imshow_rgb, cv2_read_file_rgb, read_cam_frame, crop_to_square
 from image_misc import FormattedString, cv2_typeset_text, to_255
+from ros_input import ImageConverter
 from bindings import bindings
 
 class ImproperlyConfigured(Exception):
@@ -51,7 +52,7 @@ class CodependentThread(Thread):
         self.heartbeat_timeout = heartbeat_timeout
         self.heartbeat_lock = Lock()
         self.heartbeat()
-        
+
     def heartbeat(self):
         with self.heartbeat_lock:
             self.last_beat = time.time()
@@ -64,11 +65,11 @@ class CodependentThread(Thread):
                 return True
             else:
                 return False
-        
+
 
 class InputImageFetcher(CodependentThread):
     '''Fetches images from a webcam or loads from a directory.'''
-    
+
     def __init__(self, settings):
         CodependentThread.__init__(self, settings.input_updater_heartbeat_required)
         self.daemon = True
@@ -76,11 +77,12 @@ class InputImageFetcher(CodependentThread):
         self.quit = False
         self.latest_frame_idx = -1
         self.latest_frame_data = None
+        self.latest_mask = None
         self.latest_frame_is_from_cam = False
         self.static_file_mode = True
         self.settings = settings
         self.static_file_stretch_mode = self.settings.static_file_stretch_mode
-        
+
         # Cam input
         self.capture_device = settings.input_updater_capture_device
         self.no_cam_present = (self.capture_device is None)     # Disable all cam functionality
@@ -94,7 +96,9 @@ class InputImageFetcher(CodependentThread):
         self.latest_static_frame = None
         self.static_file_idx = None
         self.static_file_idx_increment = 0
-        
+
+        self.image_converter = ImageConverter()
+
     def bind_camera(self):
         # Due to OpenCV limitations, this should be called from the main thread
         print 'InputImageFetcher: bind_camera starting'
@@ -121,7 +125,7 @@ class InputImageFetcher(CodependentThread):
     def set_mode_static(self):
         with self.lock:
             self.static_file_mode = True
-        
+
     def set_mode_cam(self):
         with self.lock:
             if self.no_cam_present:
@@ -129,35 +133,35 @@ class InputImageFetcher(CodependentThread):
             else:
                 self.static_file_mode = False
                 assert self.bound_cap_device != None, 'Call bind_camera first'
-        
+
     def toggle_input_mode(self):
         with self.lock:
             if self.static_file_mode:
                 self.set_mode_cam()
             else:
                 self.set_mode_static()
-        
+
     def set_mode_stretch_on(self):
         with self.lock:
             if not self.static_file_stretch_mode:
                 self.static_file_stretch_mode = True
                 self.latest_static_frame = None   # Force reload
                 #self.latest_frame_is_from_cam = True  # Force reload
-        
+
     def set_mode_stretch_off(self):
         with self.lock:
             if self.static_file_stretch_mode:
                 self.static_file_stretch_mode = False
                 self.latest_static_frame = None   # Force reload
                 #self.latest_frame_is_from_cam = True  # Force reload
-        
+
     def toggle_stretch_mode(self):
         with self.lock:
             if self.static_file_stretch_mode:
                 self.set_mode_stretch_off()
             else:
                 self.set_mode_stretch_on()
-        
+
     def run(self):
         while not self.quit and not self.is_timed_out():
             #start_time = time.time()
@@ -169,17 +173,23 @@ class InputImageFetcher(CodependentThread):
                     if not self.latest_frame_is_from_cam:
                         self._increment_and_set_frame(self.latest_cam_frame, True)
                 else:
-                    frame_full = read_cam_frame(self.bound_cap_device)
+                    # print "get ros image"
+                    frame_full = self.image_converter.get_frame()
+                    mask_full = self.image_converter.get_mask()
+                    # frame_full = read_cam_frame(self.bound_cap_device)
                     #print '====> just read frame', frame_full.shape
                     frame = crop_to_square(frame_full)
+                    mask = crop_to_square(mask_full)
+                    mask = np.reshape(mask, (mask.shape[0], mask.shape[1]))
                     with self.lock:
                         self.latest_cam_frame = frame
                         self._increment_and_set_frame(self.latest_cam_frame, True)
+                        self.latest_mask = mask
             #if self.latest_frame is not None:
             #    self.update_frame(self.latest_frame)
             #    self.latest_frame = None
             #    #self.read_frames += 1
-            
+
             time.sleep(self.sleep_after_read_frame)
             #print 'Reading one frame took', time.time() - start_time
 
@@ -193,6 +203,11 @@ class InputImageFetcher(CodependentThread):
         '''
         with self.lock:
             return (self.latest_frame_idx, self.latest_frame_data)
+
+    def get_mask(self):
+
+        with self.lock:
+            return self.latest_mask
 
     def increment_static_file_idx(self, amount = 1):
         with self.lock:
@@ -234,7 +249,8 @@ class InputImageFetcher(CodependentThread):
                     im = crop_to_square(im)
                 self.latest_static_frame = im
             self._increment_and_set_frame(self.latest_static_frame, False)
-
+            self.latest_mask = np.zeros(self.latest_static_frame.shape[0:2])
+            self.latest_mask.fill(255)
 
 
 class LiveVis(object):
@@ -243,10 +259,10 @@ class LiveVis(object):
     def __init__(self, settings):
         self.settings = settings
         self.bindings = bindings
-        
+
         self.app_classes = OrderedDict()
         self.apps = OrderedDict()
-        
+
         for module_path, app_name in settings.installed_apps:
             module = importlib.import_module(module_path)
             print 'got module', module
@@ -258,7 +274,7 @@ class LiveVis(object):
             app = app_class(settings, self.bindings)
             self.apps[app_name] = app
         self.help_mode = False
-        self.window_name = 'Deep Visualization Toolbox'    
+        self.window_name = 'Deep Visualization Toolbox'
         self.quit = False
         self.debug_level = 0
 
@@ -337,7 +353,7 @@ class LiveVis(object):
             #print 'run_loop: sleeping .5...'
             #time.sleep(.5)
             #print 'run_loop: continuing'
-            
+
             # Handle key presses
             #time.sleep(.2)
             keys = []
@@ -356,7 +372,7 @@ class LiveVis(object):
             skip_imshow = False
             #if now - last_render > .05 and since_imshow < 1:
             #    skip_imshow = True
-            
+
             if skip_imshow:
                 since_imshow += 1
             else:
@@ -382,7 +398,7 @@ class LiveVis(object):
 
             #if ii > 0:
             #    print 'skipping...'
-            #    continue        
+            #    continue
 
             # Read frame
             #with WithTimer('reading'):
@@ -394,6 +410,7 @@ class LiveVis(object):
 
             # Grab latest frame from input_updater thread
             fr_idx,fr_data = self.input_updater.get_frame()
+            mask_data = self.input_updater.get_mask()
             is_new_frame = (fr_idx != latest_frame_idx and fr_data is not None)
             if is_new_frame:
                 latest_frame_idx = fr_idx
@@ -412,7 +429,7 @@ class LiveVis(object):
                 # Pass frame to apps for processing
                 for app_name, app in self.apps.iteritems():
                     with WithTimer('%s:handle_input' % app_name, quiet = self.debug_level < 1):
-                        app.handle_input(latest_frame_data, self.panes)
+                        app.handle_input(latest_frame_data, mask_data, self.panes)
                 frame_for_apps = None
 
             # Tell each app to draw
@@ -450,8 +467,8 @@ class LiveVis(object):
             ii += 1
             since_keypress += 1
             since_redraw += 1
-            if ii % 2 == 0:
-                sys.stdout.write('.')
+            # if ii % 2 == 0:
+            sys.stdout.write('.')
             sys.stdout.flush()
             # Extra sleep for debugging. In production all main loop sleep should be in cv2.waitKey.
             #time.sleep(2)
@@ -471,7 +488,7 @@ class LiveVis(object):
             app.quit()
 
         print 'Input thread joined and apps quit; exiting run_loop.'
-    
+
     def handle_key_pre_apps(self, key):
         tag = self.bindings.get_tag(key)
         if tag == 'freeze_cam':
@@ -528,7 +545,7 @@ class LiveVis(object):
     def draw_help(self):
         self.help_buffer[:] *= .7
         self.help_pane.data *= .7
-        
+
         #pane.data[:] = to_255(self.settings.window_background)
         defaults = {'face': getattr(cv2, self.settings.caffevis_help_face),
                     'fsize': self.settings.caffevis_help_fsize,
@@ -566,4 +583,3 @@ class LiveVis(object):
 
         for app_name, app in self.apps.iteritems():
             locy = app.draw_help(self.help_pane, locy)
-

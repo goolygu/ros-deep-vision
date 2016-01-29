@@ -14,55 +14,14 @@ from numpy_cache import FIFOLimitedArrayCache
 from app_base import BaseApp
 from core import CodependentThread
 from image_misc import norm01, norm01c, norm0255, tile_images_normalize, ensure_float01, tile_images_make_tiles, ensure_uint255_and_resize_to_fit, caffe_load_image, get_tiles_height_width
-from image_misc import FormattedString, cv2_typeset_text, to_255
+from image_misc import FormattedString, cv2_typeset_text, to_255, is_masked
+
+from time import gmtime, strftime
+from utils import DescriptorHandler, Descriptor
+import caffe.io
 
 
-def net_preproc_forward(net, img):
-    assert img.shape == (227,227,3), 'img is wrong size'
-    #resized = caffe.io.resize_image(img, net.image_dims)   # e.g. (227, 227, 3)
-    data_blob = net.transformer.preprocess('data', img)                # e.g. (3, 227, 227), mean subtracted and scaled to [0,255]
-    data_blob = data_blob[np.newaxis,:,:,:]                   # e.g. (1, 3, 227, 227)
-    output = net.forward(data=data_blob)
-    return output
 
-# DEPRECATED
-#
-# class SmartPadder(object):
-#     def __init__(self):
-#         self.calls = 0
-# 
-#     def pad_function(self, vector, iaxis_pad_width, iaxis, kwargs):
-#         if self.calls > 100:
-#             if iaxis_pad_width[0] > 0:
-#                 vector[:iaxis_pad_width[0]] = np.random.uniform(0,1,iaxis_pad_width[0])
-#             if iaxis_pad_width[1] > 0:
-#                 vector[-iaxis_pad_width[1]:] = np.random.uniform(0,1,iaxis_pad_width[1])
-#         self.calls += 1
-#         return vector
-#         
-# 
-#     #def get_pad_function(self):
-#     #    return lambda args : self.pad_function(*args)
-#         
-# def jy_pad_fn(vector, iaxis_pad_width, iaxis, kwargs):
-#     '''
-#     Called like this:
-#     jy_pad_fn: (100,) (0, 4) 0
-#     jy_pad_fn: (29,) (1, 1) 1
-#     jy_pad_fn: (29,) (1, 1) 2
-#     jy_pad_fn: (3,) (0, 0) 3
-#     '''
-#     #if np.random.uniform(0,1) < .01:
-#     #    print 'jy_pad_fn:', vector.shape, iaxis_pad_width, iaxis
-#     #vector[:] = np.random.uniform(0,1,(vector.shape))
-#     #vector[:] = np.random.uniform(0,1,(vector.shape))
-# 
-#     if iaxis_pad_width[0] > 0:
-#         vector[:iaxis_pad_width[0]] = np.random.uniform(0,1,iaxis_pad_width[0])
-#     if iaxis_pad_width[1] > 0:
-#         vector[-iaxis_pad_width[1]:] = np.random.uniform(0,1,iaxis_pad_width[1])
-#     return vector
-#     #assert False
 
 
 layer_renames = {
@@ -72,7 +31,7 @@ layer_renames = {
     'norm2': 'n2',
     'pool5': 'p5',
     }
-    
+
 def get_pp_layer_name(layer_name):
     return layer_renames.get(layer_name, layer_name)
 
@@ -99,18 +58,80 @@ class CaffeProcThread(CodependentThread):
         self.loop_sleep = loop_sleep
         self.pause_after_keys = pause_after_keys
         self.debug_level = 0
-        
+        self.descriptor = None
+        self.descriptor_layer_1 = 'conv5'
+        self.descriptor_layer_2 = 'conv4'
+        self.descriptor_layers = ['conv5','conv4']
+        self.net_input_image = None
+        self.descriptor_handler = DescriptorHandler(self.state.settings.ros_dir + '/models/memory/', self.descriptor_layers)
+        self.available_layer = ['conv1', 'pool1', 'norm1', 'conv2', 'pool2', 'norm2', 'conv3', 'conv4', 'conv5', 'pool5', 'fc6', 'fc7', 'fc8', 'prob']
+        #['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'fc6', 'fc7', 'fc8', 'prob']
+        print "layers ", list(self.net._layer_names)
+
+    def mask_out(self, data, mask):
+        # print "data shape", data.shape
+        dim = data.shape
+
+        for y in range(dim[2]):
+            for x in range(dim[3]):
+                if is_masked((dim[2],dim[3]),(x,y),mask):
+                    data[:,:,y,x] = 0
+
+        return data
+
+    def net_preproc_forward(self, img):
+        assert img.shape == (227,227,3), 'img is wrong size'
+        #resized = caffe.io.resize_image(img, net.image_dims)   # e.g. (227, 227, 3)
+        data_blob = self.net.transformer.preprocess('data', img)                # e.g. (3, 227, 227), mean subtracted and scaled to [0,255]
+        data_blob = data_blob[np.newaxis,:,:,:]                   # e.g. (1, 3, 227, 227)
+        output = self.net.forward(data=data_blob)
+        return output
+
+    def net_proc_forward_layer(self, img, mask):
+        assert img.shape == (227,227,3), 'img is wrong size'
+        #resized = caffe.io.resize_image(img, net.image_dims)   # e.g. (227, 227, 3)
+        data_blob = self.net.transformer.preprocess('data', img)                # e.g. (3, 227, 227), mean subtracted and scaled to [0,255]
+        data_blob = data_blob[np.newaxis,:,:,:]                   # e.g. (1, 3, 227, 227)
+        # print "mask", mask.shape
+
+        for idx in range(len(self.available_layer)-1):
+            output = self.net.forward(data=data_blob,start=self.available_layer[idx],end=self.available_layer[idx+1])
+            if self.available_layer[idx].startswith("conv"):
+                new_blob = self.net.blobs[self.available_layer[idx]].data
+                new_blob.data = self.mask_out(self.net.blobs[self.available_layer[idx]].data, mask)
+                self.net.blobs[self.available_layer[idx]] = new_blob
+            # print output
+
+        return output
+
+    def save_descriptor(self):
+        print 'save descriptor'
+        # print type(self.net.blobs[self.descriptor_layer_1])
+        # descriptor_1 = np.array(caffe.io.blobproto_to_array(self.net.blobs[self.descriptor_layer_1]))
+        # descriptor_2 = np.array(caffe.io.blobproto_to_array(self.net.blobs[self.descriptor_layer_2]))
+        # print descriptor
+        self.time_name = strftime("%d-%m-%Y-%H:%M:%S", gmtime())
+
+        desc = self.descriptor_handler.gen_descriptor(self.time_name, self.net.blobs)
+        self.descriptor_handler.save(self.state.settings.ros_dir + '/models/memory/', desc)
+
+        # np.save(self.state.settings.ros_dir + '/models/memory/' + self.time_name + "_" + self.descriptor_layer_1 + '.npy', descriptor_1)
+        # np.save(self.state.settings.ros_dir + '/models/memory/' + self.time_name + "_" + self.descriptor_layer_2 + '.npy', descriptor_2)
+        cv2.imwrite(self.state.settings.ros_dir + '/models/memory/' + self.time_name + '.jpg', self.net_input_image[:,:,::-1])
+
+        self.state.save_descriptor = False
+
     def run(self):
         print 'CaffeProcThread.run called'
         frame = None
-        
+        mask = None
         while not self.is_timed_out():
             with self.state.lock:
                 if self.state.quit:
                     #print 'CaffeProcThread.run: quit is True'
                     #print self.state.quit
                     break
-                    
+
                 #print 'CaffeProcThread.run: caffe_net_state is:', self.state.caffe_net_state
 
                 #print 'CaffeProcThread.run loop: next_frame: %s, caffe_net_state: %s, back_enabled: %s' % (
@@ -119,10 +140,12 @@ class CaffeProcThread(CodependentThread):
                 #    self.state.back_enabled)
 
                 frame = None
+                mask = None
                 run_fwd = False
                 run_back = False
                 if self.state.caffe_net_state == 'free' and time.time() - self.state.last_key_at > self.pause_after_keys:
                     frame = self.state.next_frame
+                    mask = self.state.mask
                     self.state.next_frame = None
                     back_enabled = self.state.back_enabled
                     back_mode = self.state.back_mode
@@ -139,30 +162,122 @@ class CaffeProcThread(CodependentThread):
                     self.state.caffe_net_state = 'proc' if (run_fwd or run_back) else 'free'
 
             #print 'run_fwd,run_back =', run_fwd, run_back
-            
+
             if run_fwd:
                 #print 'TIMING:, processing frame'
                 self.frames_processed_fwd += 1
-                im_small = cv2.resize(frame, self.input_dims)
+                self.net_input_image = cv2.resize(frame, self.input_dims)
                 with WithTimer('CaffeProcThread:forward', quiet = self.debug_level < 1):
-                    net_preproc_forward(self.net, im_small)
+                    print "run forward layer"
+                    self.net_proc_forward_layer(self.net_input_image, mask)
+                    # self.net_preproc_forward(self.net_input_image)
+
+            if self.state.save_descriptor:
+                self.save_descriptor()
+
+            if self.state.match_descriptor:
+
+                if self.descriptor is None or self.state.next_descriptor:
+                    print 'load descriptor'
+                    self.descriptor = self.descriptor_handler.get_next()
+                    self.state.next_descriptor = False
+                # self.descriptor = np.load(self.state.settings.ros_dir + '/models/blob.npy')
+                # print self.descriptor.shape
+                # print type(self.descriptor)
+                # print self.descriptor.data[0]
+            if self.state.compare_descriptor:
+                print 'compare'
+                desc_current = self.descriptor_handler.gen_descriptor('current', self.net.blobs)
+                match_file = self.descriptor_handler.get_max_match(desc_current)
+                print 'match: ' + match_file
+                self.state.compare_descriptor = False
 
             if run_back:
-                diffs = self.net.blobs[backprop_layer].diff * 0
-                diffs[0][backprop_unit] = self.net.blobs[backprop_layer].data[0,backprop_unit]
 
-                assert back_mode in ('grad', 'deconv')
-                if back_mode == 'grad':
-                    with WithTimer('CaffeProcThread:backward', quiet = self.debug_level < 1):
-                        #print '**** Doing backprop with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
-                        self.net.backward_from_layer(backprop_layer, diffs, zero_higher = True)
+                # Match to saved descriptor
+                if self.state.match_descriptor:
+                    print '*'
+                    diffs = self.net.blobs[self.descriptor_layer_1].diff * 0
+                    # print diffs.shape
+                    # diffs[0][backprop_unit] = self.net.blobs[backprop_layer].data[0,backprop_unit]
+
+
+
+                    # similarity = self.descriptor_handler.get_signature_similarity(desc_current, self.descriptor)
+                    # print 'similarity ', similarity
+
+                    for unit, response in enumerate(self.net.blobs[self.descriptor_layer_1].data[0]):
+                        # print 'sum ', response.sum(), ' max ', response.max()
+                        if response.max() > 0 and abs(response.max() - self.descriptor.get_sig_list()[0][0][unit].max())/response.max() < 0.2:
+                            diffs[0][unit] = self.net.blobs[self.descriptor_layer_1].data[0][unit]
+
+
+                    assert back_mode in ('grad', 'deconv')
+                    if back_mode == 'grad':
+                        with WithTimer('CaffeProcThread:backward', quiet = self.debug_level < 1):
+                            #print '**** Doing backprop with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
+                            self.net.backward_from_layer(self.descriptor_layer_1, diffs, zero_higher = True)
+                    else:
+                        with WithTimer('CaffeProcThread:deconv', quiet = self.debug_level < 1):
+                            #print '**** Doing deconv with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
+                            self.net.deconv_from_layer(self.descriptor_layer_1, diffs, zero_higher = True)
+
+                    with self.state.lock:
+                        self.state.back_stale = False
+
+                # Filter when back propagating
+                elif self.state.backprop_filter:
+                    print "run_back"
+                    print backprop_layer
+                    start_layer_idx = self.available_layer.index(backprop_layer)
+                    idx = start_layer_idx
+                    for current_layer in list(reversed(self.available_layer[0:start_layer_idx+1])):
+
+                        diffs = self.net.blobs[current_layer].diff * 0
+                        # diffs[0][backprop_unit] = self.net.blobs[backprop_layer].data[0,backprop_unit]
+                        #diffs[0] = self.net.blobs[backprop_layer].data[0]
+                        # print self.net.blobs[backprop_layer].data[0]
+                        max_response = self.net.blobs[current_layer].data[0].max()
+                        for unit, response in enumerate(self.net.blobs[current_layer].data[0]):
+                            if response.max() > max_response * 0.6:
+                                diffs[0][unit] = self.net.blobs[current_layer].data[0,unit]
+
+
+                        assert back_mode in ('grad', 'deconv')
+                        if back_mode == 'grad':
+                            with WithTimer('CaffeProcThread:backward', quiet = self.debug_level < 1):
+                                #print '**** Doing backprop with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
+                                self.net.backward_from_to_layer(current_layer, diffs, self.available_layer[idx-1], zero_higher = (idx == start_layer_idx))
+                        # else:
+                        #     with WithTimer('CaffeProcThread:deconv', quiet = self.debug_level < 1):
+                        #         #print '**** Doing deconv with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
+                        #         self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
+                        idx -= 1
+                    with self.state.lock:
+                        self.state.back_stale = False
+
+                # original approach
                 else:
-                    with WithTimer('CaffeProcThread:deconv', quiet = self.debug_level < 1):
-                        #print '**** Doing deconv with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
-                        self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
+                    diffs = self.net.blobs[backprop_layer].diff * 0
+                    diffs[0][backprop_unit] = self.net.blobs[backprop_layer].data[0,backprop_unit]
+                    # diffs[0] = self.net.blobs[backprop_layer].data[0]
 
-                with self.state.lock:
-                    self.state.back_stale = False
+                    # max_response = self.net.blobs[backprop_layer].data[0].max()
+                    # for unit, response in enumerate(self.net.blobs[backprop_layer].data[0]):
+                    #     if response.max() > max_response * 0.8:
+                    #         diffs[0][unit] = self.net.blobs[backprop_layer].data[0,unit]
+                    assert back_mode in ('grad', 'deconv')
+                    if back_mode == 'grad':
+                        with WithTimer('CaffeProcThread:backward', quiet = self.debug_level < 1):
+                            #print '**** Doing backprop with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
+                            self.net.backward_from_layer(backprop_layer, diffs, zero_higher = True)
+                    else:
+                        with WithTimer('CaffeProcThread:deconv', quiet = self.debug_level < 1):
+                            #print '**** Doing deconv with %s diffs in [%s,%s]' % (backprop_layer, diffs.min(), diffs.max())
+                            self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
+
+                    with self.state.lock:
+                        self.state.back_stale = False
 
             if run_fwd or run_back:
                 with self.state.lock:
@@ -170,7 +285,7 @@ class CaffeProcThread(CodependentThread):
                     self.state.drawing_stale = True
             else:
                 time.sleep(self.loop_sleep)
-        
+            time.sleep(0.1)
         print 'CaffeProcThread.run: finished'
         print 'CaffeProcThread.run: processed %d frames fwd, %d frames back' % (self.frames_processed_fwd, self.frames_processed_back)
 
@@ -189,10 +304,10 @@ class JPGVisLoadingThread(CodependentThread):
         self.cache = cache
         self.loop_sleep = loop_sleep
         self.debug_level = 0
-        
+
     def run(self):
         print 'JPGVisLoadingThread.run called'
-        
+
         while not self.is_timed_out():
             with self.state.lock:
                 if self.state.quit:
@@ -226,7 +341,7 @@ class JPGVisLoadingThread(CodependentThread):
                 resize_shape = (data_shape[0]/3, data_shape[1])
             else:
                 resize_shape = (data_shape[0], data_shape[1]/3)
-            
+
             # 0. e.g. regularized_opt/conv1/conv1_0037_montage.jpg
             jpg_path = os.path.join(self.settings.caffevis_unit_jpg_dir,
                                     'regularized_opt',
@@ -248,7 +363,7 @@ class JPGVisLoadingThread(CodependentThread):
                 img = caffe_load_image(jpg_path, color = True)
                 images[1] = ensure_uint255_and_resize_to_fit(img, resize_shape)
             except IOError:
-                pass                
+                pass
 
             # 2. e.g. max_deconv/conv1/conv1_0037.jpg
             try:
@@ -263,7 +378,7 @@ class JPGVisLoadingThread(CodependentThread):
 
             # Prune images that were not found:
             images = [im for im in images if im is not None]
-            
+
             # Stack together
             if len(images) > 0:
                 #print 'Stacking:', [im.shape for im in images]
@@ -274,7 +389,7 @@ class JPGVisLoadingThread(CodependentThread):
                 #print 'Resized:', img_resize.shape
             else:
                 img_resize = np.zeros(shape=(0,))   # Sentinal value when image is not found.
-                
+
             self.cache.set(jpgvis_to_load_key, img_resize)
 
             with self.state.lock:
@@ -283,7 +398,7 @@ class JPGVisLoadingThread(CodependentThread):
 
         print 'JPGVisLoadingThread.run: finished'
 
-        
+
 
 
 class CaffeVisAppState(object):
@@ -307,6 +422,7 @@ class CaffeVisAppState(object):
         self.jpgvis_to_load_key = None
         self.last_key_at = 0
         self.quit = False
+        self.mask = None
 
         self._reset_user_state()
 
@@ -333,7 +449,12 @@ class CaffeVisAppState(object):
         self.drawing_stale = True
         kh,_ = self.bindings.get_key_help('help_mode')
         self.extra_msg = '%s for help' % kh[0]
-        
+        self.backprop_filter = False
+        self.save_descriptor = False
+        self.match_descriptor = False
+        self.next_descriptor = False
+        self.compare_descriptor = False
+
     def handle_key(self, key):
         #print 'Ignoring key:', key
         if key == -1:
@@ -438,7 +559,7 @@ class CaffeVisAppState(object):
                 if self.backprop_selection_frozen:
                     # Grap layer/selected_unit upon transition from non-frozen -> frozen
                     self.backprop_layer = self.layer
-                    self.backprop_unit = self.selected_unit                    
+                    self.backprop_unit = self.selected_unit
             elif tag == 'zoom_mode':
                 self.layers_pane_zoom_mode = (self.layers_pane_zoom_mode + 1) % 3
                 if self.layers_pane_zoom_mode == 2 and not self.back_enabled:
@@ -450,6 +571,21 @@ class CaffeVisAppState(object):
 
             elif tag == 'toggle_unit_jpgs':
                 self.show_unit_jpgs = not self.show_unit_jpgs
+
+            elif tag == 'toggle_backprop_filter':
+                self.backprop_filter = not self.backprop_filter
+
+            elif tag == 'save_descriptor':
+                self.save_descriptor = True
+
+            elif tag == 'match_descriptor':
+                self.match_descriptor = not self.match_descriptor
+
+            elif tag == 'next_descriptor':
+                self.next_descriptor = True
+
+            elif tag == 'compare_descriptor':
+                self.compare_descriptor = True
 
             else:
                 key_handled = False
@@ -510,7 +646,7 @@ class CaffeVisAppState(object):
         self.tiles_number = n_valid
         # If the number of tiles has shrunk, the selection may now be invalid
         self._ensure_valid_selected()
-        
+
     def _ensure_valid_selected(self):
         self.selected_unit = max(0, self.selected_unit)
         self.selected_unit = min(self.tiles_number-1, self.selected_unit)
@@ -524,7 +660,7 @@ class CaffeVisApp(BaseApp):
         print 'Got settings', settings
         self.settings = settings
         self.bindings = key_bindings
-        
+
         sys.path.insert(0, os.path.join(settings.caffevis_caffe_root, 'python'))
         import caffe
 
@@ -537,7 +673,7 @@ class CaffeVisApp(BaseApp):
             print '$ cd models/caffenet-yos/'
             print '$ ./fetch.sh\n\n'
             raise
-        
+
         # Crop center region (e.g. 227x227) if mean is larger (e.g. 256x256)
         excess_h = self._data_mean.shape[1] - self.settings.caffevis_data_hw[0]
         excess_w = self._data_mean.shape[2] - self.settings.caffevis_data_hw[1]
@@ -579,7 +715,7 @@ class CaffeVisApp(BaseApp):
         if settings.caffevis_jpg_cache_size < 10*1024**2:
             raise Exception('caffevis_jpg_cache_size must be at least 10MB for normal operation.')
         self.img_cache = FIFOLimitedArrayCache(settings.caffevis_jpg_cache_size)
-        
+
     def start(self):
         self.state = CaffeVisAppState(self.net, self.settings, self.bindings)
         self.state.drawing_stale = True
@@ -599,11 +735,11 @@ class CaffeVisApp(BaseApp):
                                                      self.settings.caffevis_jpg_load_sleep,
                                                      self.settings.caffevis_heartbeat_required)
             self.jpgvis_thread.start()
-                
+
 
     def get_heartbeats(self):
         return [self.proc_thread.heartbeat, self.jpgvis_thread.heartbeat]
-            
+
     def quit(self):
         print 'CaffeVisApp: trying to quit'
 
@@ -618,13 +754,13 @@ class CaffeVisApp(BaseApp):
             if self.proc_thread.is_alive():
                 raise Exception('CaffeVisApp: Could not join proc_thread; giving up.')
             self.proc_thread = None
-                
+
         print 'CaffeVisApp: quitting.'
-        
+
     def _can_skip_all(self, panes):
         return ('caffevis_layers' not in panes.keys())
-        
-    def handle_input(self, input_image, panes):
+
+    def handle_input(self, input_image, mask, panes):
         if self.debug_level > 1:
             print 'handle_input: frame number', self.handled_frames, 'is', 'None' if input_image is None else 'Available'
         self.handled_frames += 1
@@ -635,13 +771,15 @@ class CaffeVisApp(BaseApp):
             if self.debug_level > 1:
                 print 'CaffeVisApp.handle_input: pushed frame'
             self.state.next_frame = input_image
+            self.state.mask = mask
             if self.debug_level > 1:
                 print 'CaffeVisApp.handle_input: caffe_net_state is:', self.state.caffe_net_state
-    
+
     def redraw_needed(self):
         return self.state.redraw_needed()
 
     def draw(self, panes):
+        print 'draw'
         if self._can_skip_all(panes):
             if self.debug_level > 1:
                 print 'CaffeVisApp.draw: skipping'
@@ -655,6 +793,7 @@ class CaffeVisApp(BaseApp):
                 self.state.caffe_net_state = 'draw'
 
         if do_draw:
+            print 'CaffeVisApp.draw: drawing'
             if self.debug_level > 1:
                 print 'CaffeVisApp.draw: drawing'
 
@@ -716,7 +855,7 @@ class CaffeVisApp(BaseApp):
         cv2.putText(pane.data, st2, loc, face, fsize, clr_this, thick_this)
         boxsize2, _ = cv2.getTextSize(st2, face, fsize, thick_this)
         loc = (loc[0] + boxsize2[0], loc[1])
-        
+
         cv2.putText(pane.data, st3, loc, face, fsize, clr, thick)
 
         #print 'st1', st1
@@ -753,8 +892,8 @@ class CaffeVisApp(BaseApp):
 
         cv2_typeset_text(pane.data, strings, loc,
                          line_spacing = self.settings.caffevis_class_line_spacing)
-        
-        
+
+
     def _draw_control_pane(self, pane):
         pane.data[:] = to_255(self.settings.window_background)
 
@@ -823,10 +962,10 @@ class CaffeVisApp(BaseApp):
 
         cv2_typeset_text(pane.data, strings, loc,
                          line_spacing = self.settings.caffevis_status_line_spacing)
-    
+
     def _draw_layer_pane(self, pane):
         '''Returns the data shown in highres format, b01c order.'''
-        
+
         if self.state.layers_show_back:
             layer_dat_3D = self.net.blobs[self.state.layer].diff[0]
         else:
@@ -930,7 +1069,7 @@ class CaffeVisApp(BaseApp):
 
         if display_3D_highres is None:
             display_3D_highres = display_3D
-        
+
         # Display pane based on layers_pane_zoom_mode
         state_layers_pane_zoom_mode = self.state.layers_pane_zoom_mode
         assert state_layers_pane_zoom_mode in (0,1,2)
@@ -944,7 +1083,7 @@ class CaffeVisApp(BaseApp):
         else:
             # Mode 2: ??? backprop ???
             display_2D_resize = ensure_uint255_and_resize_to_fit(display_2D, pane.data.shape) * 0
-        
+
         pane.data[0:display_2D_resize.shape[0], 0:display_2D_resize.shape[1], :] = display_2D_resize
 
         return display_3D_highres
@@ -958,7 +1097,7 @@ class CaffeVisApp(BaseApp):
                 mode = 'selected'
             else:
                 mode = 'prob_labels'
-                
+
         if mode == 'selected':
             unit_data = layer_data_normalized[self.state.selected_unit]
             unit_data_resize = ensure_uint255_and_resize_to_fit(unit_data, pane.data.shape)
@@ -975,7 +1114,7 @@ class CaffeVisApp(BaseApp):
             state_layer = self.state.layer
             selected_unit = self.state.selected_unit
             back_what_to_disp = self.get_back_what_to_disp()
-                
+
         if back_what_to_disp == 'disabled':
             pane.data[:] = to_255(self.settings.window_background)
 
@@ -984,7 +1123,7 @@ class CaffeVisApp(BaseApp):
 
         else:
             # One of the backprop modes is enabled and the back computation (gradient or deconv) is up to date
-            
+
             grad_blob = self.net.blobs['data'].diff
 
             #print '****grad_blob min,max =', grad_blob.min(), grad_blob.max()
@@ -1076,7 +1215,7 @@ class CaffeVisApp(BaseApp):
         lines = []
         lines.append([FormattedString('', defaults)])
         lines.append([FormattedString('Caffevis keys', defaults)])
-        
+
         kl,_ = self.bindings.get_key_help('sel_left')
         kr,_ = self.bindings.get_key_help('sel_right')
         ku,_ = self.bindings.get_key_help('sel_up')
@@ -1109,7 +1248,7 @@ class CaffeVisApp(BaseApp):
         #help_string = 'Move cursor left, right, up, or down (faster)'
         #lines.append([FormattedString(label, defaults, width=120, align='right'),
         #              FormattedString(help_string, defaults)])
-            
+
         for tag in ('sel_layer_left', 'sel_layer_right', 'zoom_mode', 'pattern_mode',
                     'ez_back_mode_loop', 'freeze_back_unit', 'show_back', 'back_mode', 'back_filt_mode',
                     'boost_gamma', 'boost_individual', 'reset_state'):
@@ -1137,12 +1276,12 @@ def crop_to_corner(img, corner, small_padding = 1, large_padding = 2):
     #tp = 0
     return img[big_ii*half_size+tp:(big_ii+1)*half_size-tp,
                big_jj*half_size+tp:(big_jj+1)*half_size-tp]
-    
+
     #image_pixels = img.shape[0] - small_padding * 12 - large_padding * 4
     #assert image_pixels % 6 == 0, 'math error'
     #small_image_size = image_pixels / 6
 
-    
+
 def load_sprite_image(img_path, rows_cols, n_sprites = None):
     '''Load a 2D sprite image where (rows,cols) = rows_cols. Sprite
     shape is computed automatically. If n_sprites is not given, it is

@@ -72,7 +72,9 @@ Simple:
 
 Once the toolbox is running, push 'h' to show a help screen. You can also have a look at `bindings.py` to see what the various keys do. If the window is too large or too small for your screen, set the `global_scale` variable in `settings.py` to a value smaller or larger than one.
 
-
+Run test:
+    $ ./test_match.py > result.txt
+compare to ground_truth.txt
 
 
 # Troubleshooting
