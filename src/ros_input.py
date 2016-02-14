@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import roslib
-roslib.load_manifest('ros_deep_vision')
 import sys
 import rospy
 import cv2
@@ -17,7 +16,7 @@ class ImageConverter:
 
   def __init__(self):
 
-    rospy.init_node('image_converter', anonymous=True)
+
 
     # self.image_pub = rospy.Publisher("image_topic_2",Image)
 
@@ -29,8 +28,8 @@ class ImageConverter:
     self.latest_mask = None;
 
     self.bridge = CvBridge()
-    # self.image_sub = rospy.Subscriber("/asus/rgb/image_raw",Image,self.callback,queue_size=1)
-    self.image_sub = rospy.Subscriber("/r2/head/asus/rgb/image_raw",Image,self.callback,queue_size=1)
+    self.image_sub = rospy.Subscriber("/asus/rgb/image_raw",Image,self.callback,queue_size=1)
+    # self.image_sub = rospy.Subscriber("/r2/head/asus/rgb/image_raw",Image,self.callback,queue_size=1)
     self.depth_sub = rospy.Subscriber("/r2/head/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
     self.mask_sub = rospy.Subscriber("/image_mask",Image, self.mask_callback, queue_size=1)
 

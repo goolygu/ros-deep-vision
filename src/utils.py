@@ -3,6 +3,49 @@ import numpy as np
 import re
 import os
 import caffe.io
+import cv2
+import yaml
+from time import gmtime, strftime
+
+class DataHandler:
+
+    def __init__(self, ros_dir):
+        self.ros_dir = ros_dir
+
+
+    def save_net(self, net):
+
+        time_name = strftime("%d-%m-%Y-%H:%M:%S", gmtime())
+        file_name = self.ros_dir + '/models/memory/' + time_name + '_data' + '.net'
+        img_name = self.ros_dir + '/models/memory/rgb/' + time_name + '.png'
+        img = np.rollaxis(net.blobs['data'].data[0], 0, 3)
+        cv2.imwrite(img_name, img)
+
+        return time_name
+
+    def load_net(self, net, time_name):
+        file_name = self.ros_dir + '/models/memory/' + time_name + '_data' + '.net'
+        img_name = self.ros_dir + '/models/memory/rgb/' + time_name + '.png'
+        img = cv2.imread(img_name)
+        img = np.rollaxis(img, 2, 0)
+        data_blob = img[np.newaxis,:,:,:]
+        self.net.forward(data=data_blob)
+
+        return net
+
+class R2EEPoseHandler:
+
+    def __init__(self):
+        self.topic =  "/rviz_moveit_motion_planning_display/robot_interaction_interactive_marker_topic/feedback"
+        self.pose_sub = rospy.Subscriber(self.topic, InteractiveMarkerFeedback, self.feedback_callback, queue_size=1)
+
+    def feedback_callback(self, data):
+        self.pose = data.pose
+
+    def save_pose(self, time_name):
+        with open(time_name + '_pose.yml', 'w') as outfile:
+            outfile.write( yaml.dump(self.pose) )
+
 
 class Descriptor:
 

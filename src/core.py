@@ -10,6 +10,9 @@ import time
 import glob
 import re
 
+import roslib
+import rospy
+
 try:
     import cv2
 except ImportError:
@@ -17,7 +20,7 @@ except ImportError:
     raise
 
 from misc import WithTimer
-from image_misc import cv2_imshow_rgb, cv2_read_file_rgb, read_cam_frame, crop_to_square
+from image_misc import cv2_imshow_rgb, cv2_read_file_rgb, read_cam_frame, crop_to_square, crop_to_center
 from image_misc import FormattedString, cv2_typeset_text, to_255
 from ros_input import ImageConverter
 from bindings import bindings
@@ -178,8 +181,11 @@ class InputImageFetcher(CodependentThread):
                     mask_full = self.image_converter.get_mask()
                     # frame_full = read_cam_frame(self.bound_cap_device)
                     #print '====> just read frame', frame_full.shape
-                    frame = crop_to_square(frame_full)
-                    mask = crop_to_square(mask_full)
+                    # frame = crop_to_square(frame_full)
+                    # mask = crop_to_square(mask_full)
+                    frame = crop_to_center(frame_full)
+                    mask = crop_to_center(mask_full)
+                    # remove chanel dim of mask
                     mask = np.reshape(mask, (mask.shape[0], mask.shape[1]))
                     with self.lock:
                         self.latest_cam_frame = frame
@@ -257,6 +263,8 @@ class LiveVis(object):
     '''Runs the demo'''
 
     def __init__(self, settings):
+
+        rospy.init_node('deep_vision', anonymous=False)
         self.settings = settings
         self.bindings = bindings
 

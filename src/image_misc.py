@@ -61,6 +61,22 @@ def read_cam_frame(cap, saveto = None):
     frame = frame * (255.0 / (frame.max() + 1e-6))
     return frame
 
+def crop_to_center(frame):
+    # print frame.shape
+    if frame.shape[0] == 480 and frame.shape[1] == 640:
+        return frame[220:460,200:440,:]
+        # return frame[180:460,180:460,:]
+    else:
+        return crop_to_square(frame)
+
+def get_crop_bias():
+    return (220, 200)
+    # return (180, 180)
+
+def get_after_crop_size():
+    return (240, 240)
+    # return (280, 280)
+
 def crop_to_square(frame):
     i_size,j_size = frame.shape[0],frame.shape[1]
     if j_size > i_size:
