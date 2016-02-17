@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8
-
+import roslib
+import rospy
 import sys
 import os
 import cv2
@@ -24,7 +25,14 @@ from collections import namedtuple
 import yaml
 from data_collector import Data
 from data_ploter import *
+from distribution import *
 import pcl
+
+from perception_msgs.srv import String2
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Point
+
+import copy
 
 class DataMonster:
 
@@ -45,7 +53,8 @@ class DataMonster:
         self._range_scale = 1.0      # not needed; image comes in [0,255]
         self.available_layer = ['conv1', 'pool1', 'norm1', 'conv2', 'pool2', 'norm2', 'conv3', 'conv4', 'conv5', 'pool5', 'fc6', 'fc7', 'fc8', 'prob']
 
-
+        self.marker_pub = rospy.Publisher('visualization_marker', Marker, queue_size=100)
+        rospy.init_node('data_monster')
 
         if settings.caffevis_mode_gpu:
             caffe.set_mode_gpu()
@@ -70,65 +79,228 @@ class DataMonster:
 
         # self.descriptor_handler = DescriptorHandler(self.settings.ros_dir + '/eric_data_set/model_seg/', self.descriptor_layers)
 
-    def run(self,dir):
+    def set_path(self, path):
+        self.path = path
 
-        data_list = self.get_data_all(dir)
+    def train(self):
 
-        # data_list = data_list[0:5]
+        data_list = self.get_data_all(self.path)
 
-        conv5_list = self.load_conv5(data_list, dir)
+        # data_list = data_list[0:2]
 
-        print "conv5", conv5_list.shape
+        img_list, mask_list = self.load_img_mask(data_list, self.path)
+
+        conv5_list = self.load_conv5(img_list, mask_list)
+
+        # print "conv5", conv5_list.shape
+
+        filter_idx_list = self.find_consistent_filters(conv5_list, 20)
+        print filter_idx_list[0:10]
+        filter_idx_list = filter_idx_list[0:3]
+
+        distribution = Distribution()
+
+        # handle conv 4 filters
+        for filter_idx in filter_idx_list:
+            print "handling filter", filter_idx
+            conv4_list = self.load_conv4_fix_conv5(img_list, mask_list, filter_idx)
+            filter_idx_list_conv4 = self.find_consistent_filters(conv4_list, 10)
+            print filter_idx_list_conv4
+            filter_idx_list_conv4 = filter_idx_list_conv4[0:3]
+            frame_list_conv4 = ["r2/left_thumb_tip","r2/left_index_tip"]
+            dist_list = self.gen_distribution(filter_idx_list_conv4, data_list, conv4_list, frame_list_conv4)
+
+            for frame_idx, frame in enumerate(frame_list_conv4):
+                for i, filter_idx in enumerate(filter_idx_list):
+                    distribution.set('conv4',filter_idx,frame,dist_list[frame_idx,i,:,:])
+        # with open(self.path + "/distribution/" + 'conv4_finger_tips' + '.yaml', 'w') as outfile:
+        #     outfile.write( yaml.dump(distribution) )
+
+        frame_list_conv5 = ["r2/left_palm"]
+        dist_list = self.gen_distribution(filter_idx_list, data_list, conv5_list, frame_list_conv5)
+        for frame_idx, frame in enumerate(frame_list_conv5):
+            for i, filter_idx in enumerate(filter_idx_list):
+                distribution.set('conv5',filter_idx,frame,dist_list[frame_idx,i,:,:])
+
+        # distribution.save(self.path)
+        return distribution
+
+    def test(self, distribution):
+        data_list = self.get_data_all(self.path)
+        data_list = data_list[12:13]
+        img_list, mask_list = self.load_img_mask(data_list, self.path)
 
         # 280/13
-        self.resize_ratio = get_after_crop_size()[0] / conv5_list.shape[2]
-        self.receptive_field_size = int(round(self.resize_ratio))
-        self.receptive_grid = self.gen_receptive_grid(self.receptive_field_size)
+        resize_ratio = get_after_crop_size()[0] / self.net.blobs['conv5'].data.shape[2]
+        receptive_field_size = int(round(resize_ratio))
+        receptive_grid = self.gen_receptive_grid(receptive_field_size)
 
-        hist = np.zeros(conv5_list.shape[1])
-        max_hist = np.zeros(conv5_list.shape[1])
-        for idx, conv5 in enumerate(conv5_list):
+
+
+
+        for idx, data in enumerate(data_list):
+
+            filter_xyz_dict = self.get_all_filter_xyz(data, distribution, img_list[idx], mask_list[idx])
+            distribution_cf = self.get_distribution_cameraframe(distribution, filter_xyz_dict)
+            self.show_point_cloud(data.name)
+            self.show_distribution(distribution_cf)
+
+            # max_xy_list = []
+            # layer = 'conv5'
+            # frame = "r2/left_palm"
+            # self.net_proc_forward_layer(img_list[idx], mask_list[idx])
+            # for filter_idx in distribution.data_dict[layer]:
+            #     max_xy = self.get_filter_max_xy(self.net.blobs[layer].data[0,filter_idx])
+            #     orig_xy = self.get_orig_xy(max_xy, resize_ratio)
+            #     max_xy_list.append(orig_xy)
+            # max_xyz_list = self.get_average_xyz_from_point_cloud(self.path, data.name, max_xy_list, receptive_grid)
+            #
+            # point_list_conv5 = np.array([]).reshape([0,3])
+            # for i, filter_idx in enumerate(distribution.data_dict[layer]):
+            #     xyz = max_xyz_list[i]
+            #     print "xyz", xyz
+            #     print "diff", distribution.data_dict[layer][filter_idx][frame]
+            #     points = np.array(distribution.data_dict[layer][filter_idx][frame]) + xyz
+            #     point_list_conv5 = np.concatenate((point_list_conv5, points), axis = 0)
+            #
+            # frame_list = ["r2/left_thumb_tip","r2/left_index_tip"]
+            # layer = 'conv4'
+            # max_xy_list = []
+            # for filter_idx in distribution.data_dict[layer]:
+            #     self.net_proc_backward(filter_idx,'conv5')
+            #     max_xy = self.get_filter_max_xy(self.net.blobs[layer].diff[0,filter_idx])
+            #     orig_xy = self.get_orig_xy(max_xy, resize_ratio)
+            #     max_xy_list.append(orig_xy)
+            # max_xyz_list = self.get_average_xyz_from_point_cloud(self.path, data.name, max_xy_list, receptive_grid)
+            #
+            # point_list_dict =  {}
+            # for frame in frame_list:
+            #     point_list_conv4 = np.array([]).reshape([0,3])
+            #     for i, filter_idx in enumerate(distribution.data_dict[layer]):
+            #         xyz = max_xyz_list[i]
+            #         # print "xyz", xyz
+            #         # print "diff", distribution.data_dict[layer][filter_idx][frame]
+            #         points = np.array(distribution.data_dict[layer][filter_idx][frame]) + xyz
+            #         point_list_conv4 = np.concatenate((point_list_conv4, points), axis = 0)
+            #     point_list_dict[frame] = point_list_conv4
+            #
+            # self.show_point_cloud(data.name)
+            # while not rospy.is_shutdown():
+            #     self.publish_point_list(point_list_conv5, (1,0,0), 1)
+            #     self.publish_point_list(point_list_dict["r2/left_thumb_tip"], (0,1,0), 2)
+            #     self.publish_point_list(point_list_dict["r2/left_index_tip"], (0,0,1), 3)
+            # rospy.spin()
+            # new_pc = self.append_point_cloud(self.path, data.name,point_list)
+            # print point_list
+            # plot_dist_camera(point_list,0.9)
+    def show_distribution(self, dist_cf):
+        color_map = {}
+        color_map["r2/left_palm"] = (1,0,0)
+        color_map["r2/left_thumb_tip"] = (0,1,0)
+        color_map["r2/left_index_tip"] = (0,0,1)
+        while not rospy.is_shutdown():
+            id = 0
+            for layer in dist_cf:
+                for filter_idx in dist_cf[layer]:
+                    for frame in dist_cf[layer][filter_idx]:
+                        self.publish_point_list(dist_cf[layer][filter_idx][frame], color_map[frame], id)
+                        id += 1
+
+    def get_distribution_cameraframe(self, dist, filter_xyz_dict):
+        dist_cf = copy.deepcopy(dist.data_dict)
+        for layer in dist_cf:
+            for filter_idx in dist_cf[layer]:
+                for frame in dist_cf[layer][filter_idx]:
+                    dist_cf[layer][filter_idx][frame] += filter_xyz_dict[layer][filter_idx]
+        return dist_cf
+
+    def get_all_filter_xyz(self, data, dist, img, mask):
+        xyz_dict = {}
+        for layer in dist.data_dict:
+            max_xy_list = []
+            xyz_dict[layer] = {}
+
+            resize_ratio = get_after_crop_size()[0] / self.net.blobs[layer].data.shape[2]
+            receptive_field_size = int(round(resize_ratio))
+            receptive_grid = self.gen_receptive_grid(receptive_field_size)
+
+            self.net_proc_forward_layer(img, mask)
+            for filter_idx in distribution.data_dict[layer]:
+                max_xy = self.get_filter_max_xy(self.net.blobs[layer].data[0,filter_idx])
+                orig_xy = self.get_orig_xy(max_xy, resize_ratio)
+                max_xy_list.append(orig_xy)
+            max_xyz_list = self.get_average_xyz_from_point_cloud(self.path, data.name, max_xy_list, receptive_grid)
+
+            for i, filter_idx in enumerate(distribution.data_dict[layer]):
+                xyz = max_xyz_list[i]
+                xyz_dict[layer][filter_idx] = xyz
+
+        return xyz_dict
+
+
+    def find_consistent_filters(self, conv_list, threhold):
+        hist = np.zeros(conv_list.shape[1])
+        max_hist = np.zeros(conv_list.shape[1])
+        for idx, conv in enumerate(conv_list):
             # print idx
-            bin_data, max_data = self.binarize(conv5)
+            bin_data, max_data = self.binarize(conv, threhold)
             hist = hist + bin_data
-            max_hist = max_hist + max_data
+            max_hist = np.amax(np.concatenate((max_hist[np.newaxis,...],max_data[np.newaxis,...]),axis=0),axis=0)
         print "hist", hist
+        print "max hist", max_hist
         filter_idx_list = np.argsort(hist)[::-1]
-        print filter_idx_list[0:20]
-        filter_idx_list = filter_idx_list[0:5]
-        # print filter_idx_list
-        # dist_list = [ [] for f in filter_idx_list]
-        dist_list = np.empty([len(filter_idx_list),len(data_list),3])
+        return filter_idx_list
 
-        for idx, conv5 in enumerate(conv5_list):
+    def get_filter_max_xy(self, filter_response):
+        assert filter_response.ndim == 2, "filter size incorrect"
+        max_value = np.amax(filter_response)
+        if max_value <= 0:
+            return np.array([float('nan'),float('nan')])
+        max_idx = np.argmax(filter_response, axis=None)
+        max_xy = np.unravel_index(max_idx, filter_response.shape)
+        return max_xy
+
+    def gen_distribution(self, filter_idx_list, data_list, conv_list, frame_list):
+
+        dist_list = np.empty([len(frame_list),len(filter_idx_list),len(data_list),3])
+        # 280/13
+        resize_ratio = get_after_crop_size()[0] / conv_list.shape[2]
+        receptive_field_size = int(round(resize_ratio))
+        receptive_grid = self.gen_receptive_grid(receptive_field_size)
+
+        for idx, conv in enumerate(conv_list):
             print idx
             data = data_list[idx]
             name = data.name
             max_idx_list = []
             max_xy_list = []
             for filter_idx in filter_idx_list:
-                max_idx = np.argmax(conv5[filter_idx], axis=None)
-                # print "max idx", max_idx
-                max_xy = np.unravel_index(max_idx, conv5.shape[1:3])
+                max_xy = self.get_filter_max_xy(conv[filter_idx])
+                # max_value = np.amax(conv[filter_idx])
+                # if max_value <= 0:
+                #     max_xy_list.append(np.array([float('nan'),float('nan')]))
+                #     continue
+                #
+                # max_idx = np.argmax(conv[filter_idx], axis=None)
+                # # print "max idx", max_idx
+                # max_xy = np.unravel_index(max_idx, conv.shape[1:3])
                 # print "max", max_xy
-                orig_xy = self.get_orig_xy(max_xy)
+                orig_xy = self.get_orig_xy(max_xy, resize_ratio)
                 # print "orig", orig_xy
-
                 max_xy_list.append(orig_xy)
 
-                # orig_idx = np.ravel_multi_index(orig_xy,(480,640))
-                # max_idx_list.append(orig_idx)
-            max_xyz_list = self.get_average_xyz_from_point_cloud(dir, name, max_xy_list)
+            max_xyz_list = self.get_average_xyz_from_point_cloud(self.path, name, max_xy_list, receptive_grid)
             # max_xyz_list = self.get_xyz_from_point_cloud(dir, name, max_idx_list)
-            palm_xyz = np.array(self.get_palm_xyz(data))
-            diff_list = [palm_xyz - feature_xyz for feature_xyz in max_xyz_list]
-            dist_list[:,idx,:] = np.array(diff_list)
-            # dist_list.append(diff_list)
-            # for filter_idx, diff in enumerate(diff_list):
-            #     dist_list[filter_idx].append(diff)
+            for frame_idx, frame in enumerate(frame_list):
+                frame_xyz = np.array(self.get_frame_xyz(data, frame))
+                diff_list = [frame_xyz - feature_xyz for feature_xyz in max_xyz_list]
+                dist_list[frame_idx,:,idx,:] = np.array(diff_list)
 
-        for i, filter_idx in enumerate(filter_idx_list):
-            plot_dist(dist_list[i,:,:])
+        # for frame_idx, frame in enumerate(frame_list):
+        #     for i, filter_idx in enumerate(filter_idx_list):
+        #         plot_dist(dist_list[frame_idx,i,:,:])
+
+        return dist_list
 
 
     def net_preproc_forward(self, img):
@@ -155,13 +327,29 @@ class DataMonster:
             # print output
         return output
 
-    def get_orig_xy(self, xy):
-        new_x = int(round(xy[0]*self.resize_ratio + self.xy_bias[0]))
-        new_y = int(round(xy[1]*self.resize_ratio + self.xy_bias[1]))
+    def net_proc_backward(self, filter_idx, backprop_layer):
+
+        back_mode = 'grad'
+
+        diffs = self.net.blobs[backprop_layer].diff * 0
+        diffs[0][filter_idx] = self.net.blobs[backprop_layer].data[0,filter_idx]
+
+        assert back_mode in ('grad', 'deconv')
+        if back_mode == 'grad':
+            self.net.backward_from_layer(backprop_layer, diffs, zero_higher = True)
+        else:
+            self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
+
+    def get_orig_xy(self, xy, resize_ratio):
+        if np.isnan(xy[0]) or np.isnan(xy[1]):
+            return (float('nan'),float('nan'))
+
+        new_x = int(round(xy[0]*resize_ratio + self.xy_bias[0]))
+        new_y = int(round(xy[1]*resize_ratio + self.xy_bias[1]))
         return (new_x, new_y)
 
-    def get_palm_xyz(self, data):
-        return data.pose_dict["r2/left_palm"][0]
+    def get_frame_xyz(self, data, frame_name):
+        return data.pose_dict[frame_name][0]
 
     def gen_receptive_grid(self, receptive_field_size):
         return np.mgrid[0:receptive_field_size,0:receptive_field_size]
@@ -170,26 +358,89 @@ class DataMonster:
         # xv, yv = np.meshgrid(x,y)
         # return (xv, yv)
 
-    def get_average_xyz_from_point_cloud(self, dir, name, max_xy_list):
+    def get_average_xyz_from_point_cloud(self, path, name, max_xy_list, receptive_grid):
         p = pcl.PointCloud()
-        p.from_file(dir + name + ".pcd")
+        p.from_file(path + name + ".pcd")
         a = np.asarray(p)
         output = []
         for xy in max_xy_list:
-            grid = np.zeros(self.receptive_grid.shape)
-            grid[0] = xy[0] + self.receptive_grid[0]
-            grid[1] = xy[1] + self.receptive_grid[1]
+            if np.isnan(xy[0]):
+                output.append([float('nan'),float('nan'),float('nan')])
+                print "filter response zero no max xy", xy
+                continue
+            grid = np.zeros(receptive_grid.shape)
+            grid[0] = xy[0] + receptive_grid[0]
+            grid[1] = xy[1] + receptive_grid[1]
             xy_receptive_list =np.reshape(grid, [2,-1])
             idx_receptive_list = np.ravel_multi_index(xy_receptive_list.astype(int),(480,640))
             avg = np.nanmean(a[idx_receptive_list],axis=0)
+            if np.isnan(avg[0]) or np.isnan(avg[1]) or np.isnan(avg[2]):
+                print "nan found", xy
             # avg = np.nanmedian(a[idx_receptive_list],axis=0)
             output.append(avg)
 
         return np.array(output)
 
-    def get_xyz_from_point_cloud(self, dir, name, max_idx_list):
+    def show_point_cloud(self, name):
+        rospy.wait_for_service('show_point_cloud')
+        try:
+            show_point_cloud = rospy.ServiceProxy('show_point_cloud', String2)
+            resp = show_point_cloud(name,'')
+            return resp.result
+        except rospy.ServiceException, e:
+            print "Service call failed: %s"%e
+
+    def array_to_pose_msg(self, point_list):
+        msg_list = []
+        for point in point_list:
+            if np.isnan(point[0]) or np.isnan(point[1]) or np.isnan(point[2]):
+                continue
+            p_msg = Point()
+            p_msg.x = point[0]
+            p_msg.y = point[1]
+            p_msg.z = point[2]
+            msg_list.append(p_msg)
+        return tuple(msg_list)
+
+    def publish_point_list(self, point_list, color, id):
+
+        pl_marker = Marker()
+        pl_marker.header.frame_id = "/r2/asus_frame"
+        pl_marker.header.stamp = rospy.Time()
+        pl_marker.id = id
+        pl_marker.type = Marker.POINTS
+        # pl_marker.pose.position.x = 1
+        # pl_marker.pose.position.y = 1
+        # pl_marker.pose.position.z = 1
+        pl_marker.scale.x = 0.02
+        pl_marker.scale.y = 0.02
+        pl_marker.scale.z = 0.02
+        pl_marker.color.a = 1
+        pl_marker.color.r = color[0]
+        pl_marker.color.g = color[1]
+        pl_marker.color.b = color[2]
+        pl_marker.lifetime = rospy.Duration.from_sec(60)
+        pl_marker.action = Marker.ADD
+        pl_marker.points = self.array_to_pose_msg(point_list)
+
+        self.marker_pub.publish(pl_marker)
+
+    def append_point_cloud(self, path, name, point_list):
         p = pcl.PointCloud()
-        p.from_file(dir + name + ".pcd")
+        p.from_file(path + name + ".pcd")
+        a = np.asarray(p)
+        print type(a), a.shape
+        print type(point_list), point_list.shape
+
+        new_a = np.concatenate((a,point_list), axis=0)
+        new_p = pcl.PointCloud(new_a.astype(np.float32) )
+        # p.from_array(new_a.astype(float))
+        new_p.to_file(path + '/distribution/' + name + '_new.pcd')
+        return p
+
+    def get_xyz_from_point_cloud(self, path, name, max_idx_list):
+        p = pcl.PointCloud()
+        p.from_file(path + name + ".pcd")
         a = np.asarray(p)
         return a[max_idx_list]
         # print "pc shape", a.shape
@@ -206,21 +457,12 @@ class DataMonster:
                     data[:,:,y,x] = 0
 
         return data
-    #
-    # def classify(self, img_file):
-    #
-    #     image = cv2_read_file_rgb(img_file)
-    #     image = crop_to_square(image)
-    #     image = cv2.resize(image, self.input_dims)
-    #     self.net_preproc_forward(self.net, image)
-    #     desc_current = self.descriptor_handler.gen_descriptor('current', self.net.blobs)
-    #     match_file = self.descriptor_handler.get_max_match(desc_current)
-    #     return match_file
 
-    def get_data_all(self,dir):
+
+    def get_data_all(self,path):
         data_file_list = []
         match_flags = re.IGNORECASE
-        for filename in os.listdir(dir):
+        for filename in os.listdir(path):
             if re.match('.*_data\.yaml$', filename, match_flags):
                 data_file_list.append(filename)
         data_file_list = sorted(data_file_list)
@@ -229,49 +471,72 @@ class DataMonster:
         data_list = []
 
         for data_file in data_file_list:
-            f = open(dir+data_file)
+            f = open(path+data_file)
             data = yaml.load(f)
             data_list.append(data)
             # data_dict[data.name] = data
         return data_list
 
-    def load_conv5(self, data_list, dir):
+    def load_img_mask(self, data_list, path):
 
-        conv5_list = np.array([]).reshape([0] + list(self.net.blobs['conv5'].data.shape[1:]))
+        img_list = []
+        mask_list = []
 
         for idx, data in enumerate(data_list):
-            print idx
+            # print idx
 
-            img_name = dir + data.name + "_rgb.png"
+            img_name = path + data.name + "_rgb.png"
             img = cv2_read_file_rgb(img_name)
             img = crop_to_center(img)
+            img = cv2.resize(img, self.input_dims)
+            img_list.append(img)
 
-            mask_name = dir + data.name + "_mask.png"
+            mask_name = path + data.name + "_mask.png"
             mask = cv2.imread(mask_name)
             mask = crop_to_center(mask)
             mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
-            # print "shape img", img.shape
-            # print "shape mask", mask.shape
+            mask_list.append(mask)
 
-            img = cv2.resize(img, self.input_dims)
+        return img_list, mask_list
 
+
+    def load_conv5(self, img_list, mask_list):
+
+        conv5_list = np.array([]).reshape([0] + list(self.net.blobs['conv5'].data.shape[1:]))
+
+        for idx, img in enumerate(img_list):
+            print idx
             # print "img", img.shape
-            self.net_proc_forward_layer(img, mask)
+            self.net_proc_forward_layer(img, mask_list[idx])
             # self.net_preproc_forward(img)
             conv5_list = np.append(conv5_list, self.net.blobs['conv5'].data, axis=0)
             # print "shape", self.net.blobs['conv5'].data.shape
         return conv5_list
 
-    def binarize(self, data):
+    def load_conv4_fix_conv5(self, img_list, mask_list, filter_idx):
+
+        conv4_list = np.array([]).reshape([0] + list(self.net.blobs['conv4'].data.shape[1:]))
+
+        for idx, img in enumerate(img_list):
+            print idx
+            # print "img", img.shape
+            self.net_proc_forward_layer(img, mask_list[idx])
+            self.net_proc_backward(filter_idx,'conv5')
+
+            conv4_list = np.append(conv4_list, self.net.blobs['conv4'].diff, axis=0)
+            # print "shape", self.net.blobs['conv5'].data.shape
+        return conv4_list
+
+    def binarize(self, data, threhold):
         # print data.shape
         bin_data = np.zeros(data.shape[0])
         max_data = np.zeros(data.shape[0])
         for id, filter in enumerate(data):
             max_value = np.amax(filter)
-            if max_value > 20:
+            if max_value > threhold:
                 bin_data[id] = 1
             max_data[id] = max_value
-        return bin_data, max_value
+        return bin_data, max_data
 
     def average(self, data):
         # print data.shape
@@ -285,4 +550,11 @@ class DataMonster:
 if __name__ == '__main__':
 
     data_monster = DataMonster(settings)
-    data_monster.run(settings.ros_dir + '/data/')
+    data_monster.set_path(settings.ros_dir + '/data/')
+
+    # distribution = data_monster.train()
+    # distribution.save(settings.ros_dir + '/data/', 'conv5_palm_conv4_finger')
+    distribution = Distribution()
+    distribution.load(settings.ros_dir + '/data/', 'conv5_palm_conv4_finger')
+
+    data_monster.test(distribution)

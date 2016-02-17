@@ -51,6 +51,52 @@ def plot_dist(data):
 
     plt.show()
 
+def plot_dist_camera(data, table_dist):
+
+    print "shape", data.shape
+
+    fig = plt.figure()
+
+
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.set_xlim3d(-0.25, 0.25)
+    ax.set_ylim3d(-0.25, 0.25)
+    ax.set_zlim3d(-0.25+table_dist, 0.25+table_dist)
+    ax.view_init(-90, -90)
+    xs = data[:,0]
+    ys = data[:,1]
+    zs = data[:,2]
+
+    ax.scatter(xs, ys, zs, c='r', marker='o')
+
+    ax.set_xlabel('X Label')
+    ax.set_ylabel('Y Label')
+    ax.set_zlabel('Z Label')
+
+    angle = 45
+
+    x = np.linspace(-0.25,0.25,10)
+    y = np.linspace(-0.25*math.sin(angle),0.25*math.sin(angle),10)
+    xv, yv = np.meshgrid(x,y)
+    z = np.linspace(0.25*math.cos(angle),-0.25*math.cos(angle),10)
+    z = np.repeat([z], 10, axis=0)
+    z = np.transpose(z)
+    ax.plot_wireframe(xv,yv,z+table_dist)
+
+    xline=((-0.25,0.25),(0,0),(0,0))
+    ax.plot(xline[0],xline[1],xline[2],'grey')
+    yline=((0,0),(-0.25,0.25),(0,0))
+    ax.plot(yline[0],yline[1],yline[2],'grey')
+    zline=((0,0),(0,0),(-0.25,0.25))
+    ax.plot(zline[0],zline[1],zline[2],'grey')
+
+    # ax.view_init(-90, -90)
+    ax.view_init(-130, -50)
+
+
+    plt.show()
+
 
 def test():
 
