@@ -252,7 +252,8 @@ class InputImageFetcher(CodependentThread):
                 self.latest_static_filename = available_files[self.static_file_idx]
                 im = cv2_read_file_rgb(os.path.join(self.settings.static_files_dir, self.latest_static_filename))
                 if not self.static_file_stretch_mode:
-                    im = crop_to_square(im)
+                    im = crop_to_center(im)
+                    # im = crop_to_square(im)
                 self.latest_static_frame = im
             self._increment_and_set_frame(self.latest_static_frame, False)
             self.latest_mask = np.zeros(self.latest_static_frame.shape[0:2])
