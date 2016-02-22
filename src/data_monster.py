@@ -109,7 +109,7 @@ class DataMonster:
         # frame_list_conv5 = ["r2/left_palm"]
         # dist_list = self.gen_distribution(filter_idx_list_conv5, data_list, conv5_list, frame_list_conv5)
         # self.set_distribution(distribution, frame_list_conv5, filter_idx_list_conv5, dist_list, 'conv5')
-        distribution.set_tree([],filter_idx_list_conv5)
+        distribution.set_tree_list([],filter_idx_list_conv5)
         # handle conv 4 filters
         for filter_idx_5 in filter_idx_list_conv5:
 
@@ -126,7 +126,7 @@ class DataMonster:
             filter_idx_list_conv3_dict[133] = [18,157,54,37,97,157,59,171,11]
 
             bp_list_4 = np.zeros([len(data_list)] + [len(filter_idx_list_conv4)] + list(self.net.blobs["data"].diff.shape[2:]))
-            distribution.set_tree([filter_idx_5],filter_idx_list_conv4)
+            distribution.set_tree_list([filter_idx_5],filter_idx_list_conv4)
 
             for i, filter_idx_4 in enumerate(filter_idx_list_conv4):
                 print "handling filter", filter_idx_4, "layer conv4"
@@ -139,7 +139,7 @@ class DataMonster:
                 # filter_idx_list_conv3 = filter_idx_list_conv3[0:3]
 
                 bp_list_3 = np.zeros([len(data_list)] + [len(filter_idx_list_conv3)] + list(self.net.blobs["data"].diff.shape[2:]))
-                distribution.set_tree([filter_idx_5, filter_idx_4],filter_idx_list_conv3)
+                distribution.set_tree_list([filter_idx_5, filter_idx_4],filter_idx_list_conv3)
 
                 for j, filter_idx_3 in enumerate(filter_idx_list_conv3):
                     print "handling filter", filter_idx_3, "layer conv3"
