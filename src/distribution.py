@@ -6,7 +6,7 @@ import numpy as np
 import time
 
 import yaml
-
+from sklearn.neighbors.kde import KernelDensity
 import tf
 
 class Distribution:
@@ -34,8 +34,10 @@ class Distribution:
         if not filter_sig in self.data_dict:
             self.data_dict[filter_sig] = {}
 
-        self.data_dict[filter_sig][frame_name] = point_array.tolist()
-
+        if type(point_array) == type(np.array([])):
+            self.data_dict[filter_sig][frame_name] = point_array.tolist()
+        else:
+            self.data_dict[filter_sig][frame_name] = point_array
     # def set(self, layer_name, filter_idx, frame_name, point_array):
     #     filter_idx = int(filter_idx)
     #     if not layer_name in self.data_dict:
@@ -56,3 +58,19 @@ class Distribution:
         dist = yaml.load(f)
         self.data_dict = dist.data_dict
         self.filter_tree = dist.filter_tree
+
+def remove_nan(point_list):
+    new_list = np.array([]).reshape([0,3])
+    for point in point_list:
+        if not np.any(np.isnan(point)):
+            new_list = np.append(new_list, [point], axis=0)
+    return new_list
+
+def find_max_density(point_list):
+    point_list = remove_nan(point_list)
+    kde = KernelDensity(kernel='gaussian', bandwidth=0.2).fit(point_list)
+    points = kde.sample(100000)
+    prob_list = kde.score_samples(points)
+    max_point = points[np.argmax(prob_list)]
+    print "max", max_point
+    return max_point

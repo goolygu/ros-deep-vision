@@ -95,16 +95,52 @@ class CaffeProcThread(CodependentThread):
         data_blob = self.net.transformer.preprocess('data', img)                # e.g. (3, 227, 227), mean subtracted and scaled to [0,255]
         data_blob = data_blob[np.newaxis,:,:,:]                   # e.g. (1, 3, 227, 227)
         # print "mask", mask.shape
+        self.net.blobs['data'].data[...] = data_blob
+        proc_layers = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'prob']
 
-        for idx in range(len(self.available_layer)-1):
-            output = self.net.forward(data=data_blob,start=self.available_layer[idx],end=self.available_layer[idx+1])
-            if self.available_layer[idx].startswith("conv"):
-                new_blob = self.net.blobs[self.available_layer[idx]].data
-                new_blob.data = self.mask_out(self.net.blobs[self.available_layer[idx]].data, mask)
-                self.net.blobs[self.available_layer[idx]] = new_blob
+
+        mask_layers = ['']
+        mode = 0
+        if mode == 0:
+            self.net.forward_from_to(start='conv1',end='relu1')
+            self.mask_out(self.net.blobs['conv1'].data, mask)
+            self.net.forward_from_to(start='relu1',end='prob')
+
+        elif mode == 1:
+            self.net.forward_from_to(start='conv1',end='relu1')
+            self.mask_out(self.net.blobs['conv1'].data, mask)
+            self.net.forward_from_to(start='relu1',end='conv2')
+
+            self.net.forward_from_to(start='conv2',end='relu2')
+            self.mask_out(self.net.blobs['conv2'].data, mask)
+            self.net.forward_from_to(start='relu2',end='conv3')
+
+            self.net.forward_from_to(start='conv3',end='relu3')
+            self.mask_out(self.net.blobs['conv3'].data, mask)
+            self.net.forward_from_to(start='relu3',end='conv4')
+
+            self.net.forward_from_to(start='conv4',end='relu4')
+            self.mask_out(self.net.blobs['conv4'].data, mask)
+            self.net.forward_from_to(start='relu4',end='conv5')
+
+            self.net.forward_from_to(start='conv5',end='relu5')
+            self.mask_out(self.net.blobs['conv5'].data, mask)
+            self.net.forward_from_to(start='relu5',end='prob')
+
+        elif mode == 2:
+            for idx in range(0,len(proc_layers)-1):
+                output = self.net.forward_from_to(start=proc_layers[idx],end=proc_layers[idx+1])
+                self.mask_out(self.net.blobs[proc_layers[idx]].data, mask)
+
+        # for idx in range(len(self.available_layer)-1):
+        #     output = self.net.forward(data=data_blob,start=self.available_layer[idx],end=self.available_layer[idx+1])
+        #     if self.available_layer[idx].startswith("conv"):
+        #         new_blob = self.net.blobs[self.available_layer[idx]].data
+        #         new_blob.data = self.mask_out(self.net.blobs[self.available_layer[idx]].data, mask)
+        #         self.net.blobs[self.available_layer[idx]] = new_blob
             # print output
 
-        return output
+        # return output
 
     def save_descriptor(self):
         print 'save descriptor'
