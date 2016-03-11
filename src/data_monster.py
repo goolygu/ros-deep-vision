@@ -33,6 +33,10 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 import data_list as dl
 import copy
+import scipy
+from scipy.special import expit
+
+from data_util import *
 
 class DataMonster:
 
@@ -53,13 +57,13 @@ class DataMonster:
         self._range_scale = 1.0      # not needed; image comes in [0,255]
         self.available_layer = ['conv1', 'pool1', 'norm1', 'conv2', 'pool2', 'norm2', 'conv3', 'conv4', 'conv5', 'pool5', 'fc6', 'fc7', 'fc8', 'prob']
         self.threshold = {}
-        self.threshold['conv5'] = 20
-        self.threshold['conv4'] = 3#10
-        self.threshold['conv3'] = 0.5#2
+        self.threshold['conv5'] = 0#30
+        self.threshold['conv4'] = 0#5#10
+        self.threshold['conv3'] = 0#0.2#2
         self.threshold['conv2'] = 0
         self.threshold['conv1'] = 0
         self.marker_pub = rospy.Publisher('visualization_marker', Marker, queue_size=100)
-        rospy.init_node('data_monster')
+        rospy.init_node('data_monster', anonymous=True)
 
         if settings.caffevis_mode_gpu:
             caffe.set_mode_gpu()
@@ -81,7 +85,8 @@ class DataMonster:
         # self.resize_ratio = 280/self.input_dims[0]
         self.xy_bias = get_crop_bias()
         self.back_mode = 'grad'#'deconv'
-        self.average_grid = np.mgrid[-10:10,-10:10]
+        self.average_grid = np.mgrid[-5:5,-5:5]
+        self.visualize = True
         # self.data_file_list = []
 
         # self.descriptor_handler = DescriptorHandler(self.settings.ros_dir + '/eric_data_set/model_seg/', self.descriptor_layers)
@@ -90,7 +95,7 @@ class DataMonster:
         self.path = path
 
     def train_each_case(self):
-        data_dic = self.get_data_dic(self.path, dl.data_name_list)
+        data_dic = get_data_dic(self.path, dl.data_name_list)
         dist_dic = {}
         for case in data_dic:
             print "train case", case
@@ -98,7 +103,7 @@ class DataMonster:
         return dist_dic
 
     def train_all(self):
-        data_list = self.get_data_all(self.path)
+        data_list = get_data_all(self.path)
         return self.train(data_list)
 
     def train(self, data_list):
@@ -176,11 +181,126 @@ class DataMonster:
 
         return distribution
 
+    def cross_validation(self, path, name):
+        self.visualize = False
+
+        data_name_dic = get_data_name_dic(self.path, dl.data_name_list)
+        dist_dic = {}
+        result_xyz = {}
+        result = {}
+        fail_count = {}
+
+        full_distribution = {}
+
+        for case in data_name_dic:
+            print "full training", case
+            train_data_list_full = []
+            for j, object in enumerate(data_name_dic[case]):
+                train_data_list_full = train_data_list_full + data_name_dic[case][object]
+
+            full_distribution[case] = self.train(train_data_list_full)
+            full_distribution[case].save(path + '/data/', "[" + case + "]" + name)
+
+
+        for k, case in enumerate(data_name_dic):
+            print "train case", case
+            result[case] = {}
+            result_xyz[case] = {}
+            fail_count[case] = {}
+            for i, test_object in enumerate(data_name_dic[case]):
+                print "leave", i, test_object, "out"
+                train_data_list = []
+                test_data_list = []
+                for j, object in enumerate(data_name_dic[case]):
+                    if j != i:
+                        train_data_list = train_data_list + data_name_dic[case][object]
+                    else:
+                        test_data_list = test_data_list + data_name_dic[case][object]
+                # print "train_data_list", train_data_list
+                distribution = self.train(train_data_list)
+
+                for other_case in full_distribution:
+                    if other_case != case:
+                        distribution.merge(full_distribution[other_case])
+                # print "test_data_list", test_data_list
+
+                distribution.save_exact(path + '/data/distribution/cross_validation/', "[" + case + "][leave" + test_object + "]" + name)
+
+                result_xyz[case][test_object], result[case][test_object], fail_count[case][test_object] = self.test_accuracy(distribution, test_data_list)
+
+        for case in result:
+            for test_object in result[case]:
+                for frame in result[case][test_object]:
+                    print case, test_object, frame, result[case][test_object][frame]
+
+        with open(self.path + "/result/cross_validation_" + name + '.yaml', 'w') as f:
+            yaml.dump(result, f, default_flow_style=False)
+
+        with open(self.path + "/result/cross_validation_xyz_" + name + '.yaml', 'w') as f:
+            yaml.dump(result_xyz, f, default_flow_style=False)
+
+        with open(self.path + "/result/cross_validation_fail_" + name + '.yaml', 'w') as f:
+            yaml.dump(fail_count, f, default_flow_style=False)
+
+    # def cross_validation(self, distribution):
+    #     self.visualize = False
+    #     data_list = [get_data_by_name(self.path,dl.data_name_list[26]), get_data_by_name(self.path,dl.data_name_list[27])]
+    #     self.test_accuracy(distribution, data_list)
+
+    def test_accuracy(self, distribution, data_list):
+
+        img_list, mask_list = self.load_img_mask(data_list, self.path)
+
+        # 280/13
+        resize_ratio = get_after_crop_size()[0] / self.net.blobs['conv5'].data.shape[2]
+        receptive_field_size = int(round(resize_ratio))
+        receptive_grid = self.gen_receptive_grid(receptive_field_size)
+        # frame_list = ["r2/left_palm","r2/left_thumb_tip","r2/left_index_tip"]
+
+        diff_sum_dic = {}
+        diff_count = {}
+        diff_fail = {}
+
+        for idx, data in enumerate(data_list):
+            print data.name
+
+            filter_xyz_dict = self.get_all_filter_xyz(data, distribution, img_list[idx], mask_list[idx])
+
+            distribution_cf = self.get_distribution_cameraframe(distribution, filter_xyz_dict)
+            self.show_point_cloud(data.name)
+            avg_dic = self.model_distribution(distribution_cf)
+            # print "avg", avg_dic
+            for frame in avg_dic:
+                # get ground truth frame location
+                frame_xyz = np.array(self.get_frame_xyz(data, frame))
+                if not frame in diff_sum_dic:
+                    diff_sum_dic[frame] = np.array([0.,0.,0.])
+                    diff_count[frame] = 0
+                    diff_fail[frame] = 0
+                # print "frame_xyz", frame_xyz
+                if not np.isnan(avg_dic[frame][0]):
+                    diff_sum_dic[frame] += np.absolute(frame_xyz - avg_dic[frame])
+                    diff_count[frame] += 1
+                else:
+                    diff_fail[frame] += 1
+
+        diff_avg_dic = {}
+        diff_dist_dic = {}
+        for frame in diff_sum_dic:
+            avg_xyz = diff_sum_dic[frame]/diff_count[frame]
+            diff_avg_dic[frame] = avg_xyz.tolist()
+            diff_dist_dic[frame] = (np.linalg.norm(avg_xyz)).tolist()
+
+            # print frame, diff_avg_dic[frame]
+
+        return diff_avg_dic, diff_dist_dic, diff_fail
+
+            # self.show_distribution(distribution_cf)
 
     def test(self, distribution):
         # data_list = self.get_data_all(self.path)
         # data_list = [data_list[0]]
-        data_list = [self.get_data_by_name(self.path,dl.data_name_list[75])]
+        data_list = [get_data_by_name(self.path,dl.data_name_list[26])]
         img_list, mask_list = self.load_img_mask(data_list, self.path)
 
         # 280/13
@@ -222,6 +342,7 @@ class DataMonster:
         dist_list["r2/left_thumb_tip"] = np.array([]).reshape([0,3])
         dist_list["r2/left_index_tip"] = np.array([]).reshape([0,3])
 
+        # concatenate all points in camera frame of same robot joint
         for sig in dist_cf:
             for frame in dist_cf[sig]:
                 # print type(dist_cf[sig][frame])
@@ -229,24 +350,28 @@ class DataMonster:
 
         # print dist_list
 
-        avg_list = {}
+        avg_dic = {}
         cal_mean = True
         for frame in dist_list:
             if cal_mean:
-                avg_list[frame] = np.nanmean(dist_list[frame], axis=0)
+                avg_dic[frame] = np.nanmean(dist_list[frame], axis=0)
             else:
-                avg_list[frame] = find_max_density(dist_list[frame])
+                avg_dic[frame] = find_max_density(dist_list[frame])
 
         color_map = {}
         color_map["r2/left_palm"] = (0.5,0,0)
         color_map["r2/left_thumb_tip"] = (0,0.5,0)
         color_map["r2/left_index_tip"] = (0,0,0.5)
         count = 0
-        while not rospy.is_shutdown() and count < 10000:
-            for frame in avg_list:
-                ns = frame
-                self.publish_sphere_list([avg_list[frame]], color_map[frame], 0, ns)
-            count += 1
+
+        if self.visualize:
+            while not rospy.is_shutdown() and count < 10000:
+                for frame in avg_dic:
+                    ns = frame
+                    self.publish_sphere_list([avg_dic[frame]], color_map[frame], 0, ns)
+                count += 1
+
+        return avg_dic
 
 
     def set_distribution(self, distribution, frame_list, filter_idx_list, dist_list, parent_filters):
@@ -433,8 +558,8 @@ class DataMonster:
         return xyz_dict
 
     def show_gradient(self, name, grad_blob, xy_dot=(0,0), threshold=0):
-        # if True:
-        #     return
+        if not self.visualize:
+            return
         grad_blob = grad_blob[0]                    # bc01 -> c01
         grad_blob = grad_blob.transpose((1,2,0))    # c01 -> 01c
         grad_img = grad_blob[:, :, (2,1,0)]  # e.g. BGR -> RGB
@@ -491,18 +616,27 @@ class DataMonster:
     def find_consistent_filters(self, conv_list, threshold, number):
         hist = np.zeros(conv_list.shape[1])
         max_hist = np.zeros(conv_list.shape[1])
+        max_sum = np.zeros(conv_list.shape[1])
         for idx, conv in enumerate(conv_list):
             # print idx
 
             bin_data, max_data = self.binarize(conv, threshold)
             hist = hist + bin_data
             max_hist = np.amax(np.concatenate((max_hist[np.newaxis,...],max_data[np.newaxis,...]),axis=0),axis=0)
+            max_data = scipy.special.expit(max_data)
+            max_sum = max_data + max_sum
+
         # print "hist", hist
         # print "max hist", max_hist
-        filter_idx_list = np.argsort(hist)[::-1]
-        print "top filters counts", hist[filter_idx_list[0:number+10]]
-        print "top filters", filter_idx_list[0:number+10]
-        print "max value", max_hist[filter_idx_list[0:number+10]]
+        count_above_threshold = False
+        if count_above_threshold:
+            filter_idx_list = np.argsort(hist)[::-1]
+        else:
+            filter_idx_list = np.argsort(max_sum)[::-1]
+
+        # print "top filters counts", hist[filter_idx_list[0:number+10]]
+        # print "top filters", filter_idx_list[0:number+10]
+        # print "max value", max_hist[filter_idx_list[0:number+10]]
 
         for i in range(number+1):
             if hist[filter_idx_list[i]] == 0:
@@ -515,6 +649,10 @@ class DataMonster:
         # print "max", np.amax(filter_response)
         assert filter_response.ndim == 2, "filter size incorrect"
         xy_grid = np.mgrid[0:filter_response.shape[0], 0:filter_response.shape[0]]
+
+        if np.sum(filter_response) == 0:
+            return np.array([float('nan'),float('nan')])
+
         filter_response_norm = filter_response / float(np.sum(filter_response))
         avg_x = np.sum(xy_grid[0] * filter_response_norm)
         avg_y = np.sum(xy_grid[1] * filter_response_norm)
@@ -565,7 +703,7 @@ class DataMonster:
             for i, filter_idx in enumerate(filter_idx_list):
                 # cv2.imshow(layer + " " + str(idx)+" "+ str(filter_idx),norm01c(bp[i], 0))
                 # cv2.waitKey(200)
-                if self.filter_response_pass_threshold(conv_list[idx][filter_idx], threshold):
+                if not self.filter_response_pass_threshold(conv_list[idx][filter_idx], threshold):
                     max_xy_list.append((float('nan'),float('nan')))
                     continue
                 max_xy = self.get_filter_avg_xy(bp[i], 0)
@@ -857,43 +995,6 @@ class DataMonster:
                     data[:,:,y,x] = 0
 
         return data
-    def get_data_by_name(self, path, name):
-
-        f = open(path+name+"_data.yaml")
-        data = yaml.load(f)
-        return data
-
-    def get_data_dic(self, path, name_list):
-
-        data_dic = {}
-
-        for data_name in name_list:
-            data = self.get_data_by_name(path, data_name)
-            key = data.action + ":" + data.target_type
-            if key not in data_dic:
-                data_dic[key] = []
-            data_dic[key].append(data)
-            # data_dict[data.name] = data
-        return data_dic
-
-    def get_data_all(self,path):
-        data_file_list = []
-        match_flags = re.IGNORECASE
-        for filename in os.listdir(path):
-            if re.match('.*_data\.yaml$', filename, match_flags):
-                data_file_list.append(filename)
-
-        data_file_list = sorted(data_file_list)
-        print data_file_list
-        # data_dict = {}
-        data_list = []
-
-        for data_file in data_file_list:
-            f = open(path+data_file)
-            data = yaml.load(f)
-            data_list.append(data)
-            # data_dict[data.name] = data
-        return data_list
 
     def load_img_mask(self, data_list, path):
 
@@ -992,15 +1093,17 @@ if __name__ == '__main__':
 
     data_monster = DataMonster(settings)
     data_monster.set_path(settings.ros_dir + '/data/')
-    mode = 3
+    mode = 4
+
+    # naming convention layer-palm or finger, xxx filter each layer, self or auto picked filters,
+    # max or avg xy position, back prop single or all, seg_point_cloud or full, number_train, deconv or grad,
+    # backprop xy, filter cm deviation, average width on point cloud, threshold, find max filter or most above threhold
+    name = '(4-p-3-f)_(3-5-7)_auto_max_all_seg_69_g_bxy_5_(0-0-0)_max'
     # train
-    name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_sin_seg_42_g_bxy_10_(20-3-0.5)_of'
     if mode == 0:
-        name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_sin_seg_42_g_bxy_10_(20-3-0.5)_of'
+        # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_sin_seg_42_g_bxy_10_(20-3-0.5)_of'
         dist_dic = data_monster.train_each_case()
-        # naming convention layer-palm or finger, xxx filter each layer, self or auto picked filters,
-        # max or avg xy position, back prop single or all, seg_point_cloud or full, number_train, deconv or grad,
-        # backprop xy, filter cm deviation, average width on point cloud, original network forward
+
         for case in dist_dic:
             dist_dic[case].save(settings.ros_dir + '/data/', "[" + case + "]" + name)
     # test
@@ -1015,14 +1118,22 @@ if __name__ == '__main__':
     elif mode == 2:
         distribution = Distribution()
         case = '[side_wrap:cylinder]'
-        distribution.load(settings.ros_dir + '/data/', case+'(4-p-3-f)_(1-2-[9-10])_auto_avg_all_seg_42_g_bxy_10_(20-10-2)_of')
+        distribution.load(settings.ros_dir + '/data/', case + name)
         new_dist = data_monster.filter_distribution(distribution, 0.03**2)
-        new_dist.save(settings.ros_dir + '/data/', case+'(4-p-3-f)_(1-2-[9-10])_auto_avg_all_seg_42_g_bxy_10_(20-10-2)_of_f3')
+        new_dist.save(settings.ros_dir + '/data/', case + name + '_f3')
     # print names
     elif mode == 3:
-        data_all = data_monster.get_data_all(settings.ros_dir + '/data/')
+        data_all = get_data_all(settings.ros_dir + '/data/')
         for i, data in enumerate(data_all):
             print "'" + data.name + "'" , ", # ", i
+
+    elif mode == 4:
+        # distribution = Distribution()
+        # case = '[side_wrap:cylinder]'
+        #
+        # distribution.load(settings.ros_dir + '/data/', case + name)
+
+        data_monster.cross_validation(settings.ros_dir, name)#distribution)
 
     print "done"
     raw_input()
