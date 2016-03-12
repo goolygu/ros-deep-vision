@@ -23,7 +23,7 @@ class Distribution:
             else:
                 self.data_dict[sig] = dist.data_dict[sig]
 
-        self.rec_merge(self.data_dict, dist)
+        self.rec_merge(self.filter_tree, dist.filter_tree)
 
 
     def rec_merge(self, d1, d2):

@@ -20,7 +20,7 @@ from time import gmtime, strftime
 from utils import DescriptorHandler, Descriptor
 import settings
 import caffe
-import re
+
 from collections import namedtuple
 import yaml
 from data_collector import Data
@@ -87,6 +87,7 @@ class DataMonster:
         self.back_mode = 'grad'#'deconv'
         self.average_grid = np.mgrid[-5:5,-5:5]
         self.visualize = True
+        self.show_backprop = True
         # self.data_file_list = []
 
         # self.descriptor_handler = DescriptorHandler(self.settings.ros_dir + '/eric_data_set/model_seg/', self.descriptor_layers)
@@ -183,6 +184,7 @@ class DataMonster:
 
     def cross_validation(self, path, name):
         self.visualize = False
+        evaluate_on_full_dist = False
 
         data_name_dic = get_data_name_dic(self.path, dl.data_name_list)
         dist_dic = {}
@@ -190,16 +192,17 @@ class DataMonster:
         result = {}
         fail_count = {}
 
-        full_distribution = {}
+        if evaluate_on_full_dist:
+            full_distribution = {}
 
-        for case in data_name_dic:
-            print "full training", case
-            train_data_list_full = []
-            for j, object in enumerate(data_name_dic[case]):
-                train_data_list_full = train_data_list_full + data_name_dic[case][object]
+            for case in data_name_dic:
+                print "full training", case
+                train_data_list_full = []
+                for j, object in enumerate(data_name_dic[case]):
+                    train_data_list_full = train_data_list_full + data_name_dic[case][object]
 
-            full_distribution[case] = self.train(train_data_list_full)
-            full_distribution[case].save(path + '/data/', "[" + case + "]" + name)
+                full_distribution[case] = self.train(train_data_list_full)
+                full_distribution[case].save(path + '/data/', "[" + case + "]" + name)
 
 
         for k, case in enumerate(data_name_dic):
@@ -219,9 +222,10 @@ class DataMonster:
                 # print "train_data_list", train_data_list
                 distribution = self.train(train_data_list)
 
-                for other_case in full_distribution:
-                    if other_case != case:
-                        distribution.merge(full_distribution[other_case])
+                if evaluate_on_full_dist:
+                    for other_case in full_distribution:
+                        if other_case != case:
+                            distribution.merge(full_distribution[other_case])
                 # print "test_data_list", test_data_list
 
                 distribution.save_exact(path + '/data/distribution/cross_validation/', "[" + case + "][leave" + test_object + "]" + name)
@@ -242,20 +246,10 @@ class DataMonster:
         with open(self.path + "/result/cross_validation_fail_" + name + '.yaml', 'w') as f:
             yaml.dump(fail_count, f, default_flow_style=False)
 
-    # def cross_validation(self, distribution):
-    #     self.visualize = False
-    #     data_list = [get_data_by_name(self.path,dl.data_name_list[26]), get_data_by_name(self.path,dl.data_name_list[27])]
-    #     self.test_accuracy(distribution, data_list)
 
     def test_accuracy(self, distribution, data_list):
 
         img_list, mask_list = self.load_img_mask(data_list, self.path)
-
-        # 280/13
-        resize_ratio = get_after_crop_size()[0] / self.net.blobs['conv5'].data.shape[2]
-        receptive_field_size = int(round(resize_ratio))
-        receptive_grid = self.gen_receptive_grid(receptive_field_size)
-        # frame_list = ["r2/left_palm","r2/left_thumb_tip","r2/left_index_tip"]
 
         diff_sum_dic = {}
         diff_count = {}
@@ -269,6 +263,9 @@ class DataMonster:
             distribution_cf = self.get_distribution_cameraframe(distribution, filter_xyz_dict)
             self.show_point_cloud(data.name)
             avg_dic = self.model_distribution(distribution_cf)
+
+            # if self.visualize:
+            #     self.show_distribution(distribution_cf)
             # print "avg", avg_dic
             for frame in avg_dic:
                 # get ground truth frame location
@@ -298,15 +295,9 @@ class DataMonster:
             # self.show_distribution(distribution_cf)
 
     def test(self, distribution):
-        # data_list = self.get_data_all(self.path)
-        # data_list = [data_list[0]]
-        data_list = [get_data_by_name(self.path,dl.data_name_list[26])]
-        img_list, mask_list = self.load_img_mask(data_list, self.path)
 
-        # 280/13
-        resize_ratio = get_after_crop_size()[0] / self.net.blobs['conv5'].data.shape[2]
-        receptive_field_size = int(round(resize_ratio))
-        receptive_grid = self.gen_receptive_grid(receptive_field_size)
+        data_list = [get_data_by_name(self.path,dl.data_name_list[15])]
+        img_list, mask_list = self.load_img_mask(data_list, self.path)
 
         for idx, data in enumerate(data_list):
             print data.name
@@ -384,13 +375,16 @@ class DataMonster:
         color_map["r2/left_palm"] = (1,0,0)
         color_map["r2/left_thumb_tip"] = (0,1,0)
         color_map["r2/left_index_tip"] = (0,0,1)
-        while not rospy.is_shutdown():
+
+        count = 0
+        while not rospy.is_shutdown() and count < 10000:
             idx = 0
             for sig in dist_cf:
                 for frame in dist_cf[sig]:
                     ns = "/" + "/".join([str(c) for c in sig]) + "-" + frame
                     self.publish_point_list(dist_cf[sig][frame], color_map[frame], idx, ns)
                     # idx += 1
+                count += 1
 
     def show_feature(self, filter_xyz_dict):
 
@@ -451,51 +445,7 @@ class DataMonster:
         max_xyz = self.get_average_xyz_from_point_cloud_array(pc_array, [orig_xy], self.average_grid)
         return max_xyz[0], max_xy
 
-    def get_all_filter_xyz_test(self, data, dist, img, mask):
 
-        pc_array = self.get_point_cloud_array(self.path, data.name)
-        xyz_dict = {}
-        self.net_proc_forward_layer(img, mask)
-        conv5_data = copy.deepcopy(self.net.blobs['conv5'].data)
-        for filter_idx_5 in dist.filter_tree:
-            layer = 'conv5'
-            xyz_dict[(filter_idx_5)] = self.get_max_xyz(conv5_data[0,filter_idx_5], pc_array, self.threshold[layer])
-            self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
-            self.show_gradient(str((filter_idx_5)), self.net.blobs['data'].diff, self.threshold[layer])
-            conv4_data = copy.deepcopy(self.net.blobs['conv4'].diff)
-
-            for filter_idx_4 in [190]:
-                layer = 'conv4'
-                xyz_dict[(filter_idx_5, filter_idx_4)] = self.get_max_xyz(conv4_data[0,filter_idx_4], pc_array, self.threshold[layer])
-                self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
-                self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'].diff, self.threshold[layer])
-                conv3_data = copy.deepcopy(self.net.blobs['conv3'].diff)
-
-                for filter_idx_3 in [70]:
-                    print filter_idx_3
-                    layer = 'conv3'
-                    xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = self.get_max_xyz(conv3_data[0,filter_idx_3], pc_array, self.threshold[layer])
-                    self.net_proc_backward_with_data(filter_idx_3, conv3_data[0], layer)
-                    self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'].diff, self.threshold[layer])
-                    conv2_data = copy.deepcopy(self.net.blobs['conv2'].diff)
-
-                    for filter_idx_2 in [54, 61]:
-                        print filter_idx_2
-                        layer = 'conv2'
-                        xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3, filter_idx_2)] = self.get_max_xyz(conv2_data[0,filter_idx_2], pc_array, self.threshold[layer])
-                        self.net_proc_backward_with_data(filter_idx_2, conv2_data[0], layer)
-                        self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3, filter_idx_2)), self.net.blobs['data'].diff, self.threshold[layer])
-                        conv1_data = copy.deepcopy(self.net.blobs['conv1'].diff)
-
-                        for filter_idx_1 in [43, 29]:
-                            print filter_idx_1
-                            layer = 'conv1'
-                            xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3, filter_idx_2, filter_idx_1)] = self.get_max_xyz(conv1_data[0,filter_idx_1], pc_array, self.threshold[layer])
-                            self.net_proc_backward_with_data(filter_idx_1, conv1_data[0], layer)
-                            self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3, filter_idx_2, filter_idx_1)), self.net.blobs['data'].diff, self.threshold[layer])
-                            # conv1_data = copy.deepcopy(self.net.blobs['conv1'].diff)
-
-        return xyz_dict
     def get_all_filter_xyz(self, data, dist, img, mask):
 
         pc_array = self.get_point_cloud_array(self.path, data.name)
@@ -558,7 +508,7 @@ class DataMonster:
         return xyz_dict
 
     def show_gradient(self, name, grad_blob, xy_dot=(0,0), threshold=0):
-        if not self.visualize:
+        if not self.visualize or not self.show_backprop:
             return
         grad_blob = grad_blob[0]                    # bc01 -> c01
         grad_blob = grad_blob.transpose((1,2,0))    # c01 -> 01c
@@ -676,7 +626,7 @@ class DataMonster:
     def filter_response_pass_threshold(self, filter_response, threshold):
         max_v = np.nanmax(filter_response)
         # print "max", max_v
-        if max_v < threshold:
+        if max_v <= threshold:
             print "failed threshold", max_v
             return False
         else:
@@ -1092,13 +1042,14 @@ class DataMonster:
 if __name__ == '__main__':
 
     data_monster = DataMonster(settings)
-    data_monster.set_path(settings.ros_dir + '/data/')
-    mode = 4
+    path = settings.ros_dir + '/data/'
+    data_monster.set_path(path)
+    mode = 0
 
     # naming convention layer-palm or finger, xxx filter each layer, self or auto picked filters,
     # max or avg xy position, back prop single or all, seg_point_cloud or full, number_train, deconv or grad,
     # backprop xy, filter cm deviation, average width on point cloud, threshold, find max filter or most above threhold
-    name = '(4-p-3-f)_(3-5-7)_auto_max_all_seg_69_g_bxy_5_(0-0-0)_max'
+    name = '(4-p-3-f)_(3-5-7)_auto_max_all_seg_103_g_bxy_5_(30-5-0.2)_max'
     # train
     if mode == 0:
         # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_sin_seg_42_g_bxy_10_(20-3-0.5)_of'
@@ -1108,12 +1059,17 @@ if __name__ == '__main__':
             dist_dic[case].save(settings.ros_dir + '/data/', "[" + case + "]" + name)
     # test
     elif mode == 1:
+        data_monster.show_backprop = False
         distribution = Distribution()
-        case = '[side_wrap:cylinder]'
+        case1 = '[side_wrap:cylinder]'
+        case2 = '[side_wrap:cuboid]'
         # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_all_seg_42_g_bxy_10_(20-10-2)_of_f3'
-        distribution.load(settings.ros_dir + '/data/', case + name)
+        distribution.load(settings.ros_dir + '/data/', case1 + name)
 
-        data_monster.test(distribution)
+        data_list = [get_data_by_name(path,dl.data_name_list[15])]
+        diff_avg_dic, diff_dist_dic, diff_fail = data_monster.test_accuracy(distribution, data_list)
+        print diff_dist_dic
+
     # filter
     elif mode == 2:
         distribution = Distribution()
@@ -1134,6 +1090,19 @@ if __name__ == '__main__':
         # distribution.load(settings.ros_dir + '/data/', case + name)
 
         data_monster.cross_validation(settings.ros_dir, name)#distribution)
+
+    elif mode == 5:
+        dist1 = Distribution()
+        case1 = '[side_wrap:cylinder]'
+        dist1.load(settings.ros_dir + '/data/', case1 + name)
+
+        dist2 = Distribution()
+        case2 = '[side_wrap:cuboid]'
+        dist2.load(settings.ros_dir + '/data/', case2 + name)
+
+        dist1.merge(dist2)
+        dist1.save(settings.ros_dir + '/data/', case1 + case2 + name)
+
 
     print "done"
     raw_input()
