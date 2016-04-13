@@ -49,6 +49,8 @@ def cv2_read_cap_rgb(cap, saveto = None):
 
 def cv2_read_file_rgb(filename):
     im = cv2.imread(filename)
+    if im is None:
+        return None
     im = im[:,:,::-1]   # Convert native OpenCV BGR -> RGB
     return im
 
