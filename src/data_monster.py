@@ -186,7 +186,7 @@ class DataMonster:
 
         return distribution
 
-    def cross_validation(self, path, name):
+    def cross_validation(self, path, name, train):
         self.visualize = False
         evaluate_on_full_dist = False
 
@@ -202,39 +202,60 @@ class DataMonster:
             for case in data_name_dic:
                 print "full training", case
                 train_data_list_full = []
-                for j, object in enumerate(data_name_dic[case]):
-                    train_data_list_full = train_data_list_full + data_name_dic[case][object]
+                for j, train_object in enumerate(data_name_dic[case]):
+                    train_data_list_full = train_data_list_full + data_name_dic[case][train_object]
 
                 full_distribution[case] = self.train(train_data_list_full)
                 full_distribution[case].save(path + '/data/', "[" + case + "]" + name)
 
+        train_data_list = {}
+        test_data_list = {}
 
+        # create train data list and test data list
         for k, case in enumerate(data_name_dic):
-            print "train case", case
+            # print "train case", case
+
+            train_data_list[case] = {}
+            test_data_list[case] = {}
+            for i, test_object in enumerate(data_name_dic[case]):
+                # print "leave", i, test_object, "out"
+                train_data_list[case][test_object] = []
+                test_data_list[case][test_object] = []
+                for j, train_object in enumerate(data_name_dic[case]):
+                    if j != i:
+                        train_data_list[case][test_object] += data_name_dic[case][train_object]
+                    else:
+                        test_data_list[case][test_object] += data_name_dic[case][train_object]
+                # print "train_data_list", train_data_list
+
+        # train and save
+        if train:
+            for k, case in enumerate(data_name_dic):
+                print "train case", case
+                for i, test_object in enumerate(data_name_dic[case]):
+                    print "leave", i, test_object, "out"
+
+                    distribution = self.train(train_data_list[case][test_object])
+
+                    if evaluate_on_full_dist:
+                        for other_case in full_distribution:
+                            if other_case != case:
+                                distribution.merge(full_distribution[other_case])
+                    # print "test_data_list", test_data_list
+
+                    distribution.save_exact(path + '/data/distribution/cross_validation/', "[" + case + "][leave_" + test_object + "]" + name)
+
+        # test
+        for k, case in enumerate(data_name_dic):
             result[case] = {}
             result_xyz[case] = {}
             fail_count[case] = {}
+            print "test case", case
             for i, test_object in enumerate(data_name_dic[case]):
-                print "leave", i, test_object, "out"
-                train_data_list = []
-                test_data_list = []
-                for j, object in enumerate(data_name_dic[case]):
-                    if j != i:
-                        train_data_list = train_data_list + data_name_dic[case][object]
-                    else:
-                        test_data_list = test_data_list + data_name_dic[case][object]
-                # print "train_data_list", train_data_list
-                distribution = self.train(train_data_list)
-
-                if evaluate_on_full_dist:
-                    for other_case in full_distribution:
-                        if other_case != case:
-                            distribution.merge(full_distribution[other_case])
-                # print "test_data_list", test_data_list
-
-                distribution.save_exact(path + '/data/distribution/cross_validation/', "[" + case + "][leave" + test_object + "]" + name)
-
-                result_xyz[case][test_object], result[case][test_object], fail_count[case][test_object] = self.test_accuracy(distribution, test_data_list)
+                print "test", i, test_object
+                distribution = Distribution()
+                distribution.load_exact(path + '/data/distribution/cross_validation/', "[" + case + "][leave_" + test_object + "]" + name)
+                result_xyz[case][test_object], result[case][test_object], fail_count[case][test_object] = self.test_accuracy(distribution, test_data_list[case][test_object])
 
         accuracy_sum = 0.0
         count = 0.0
@@ -247,14 +268,16 @@ class DataMonster:
 
         print "average", accuracy_sum/count
 
+        test_name = self.ds.get_test_name()
 
-        with open(self.path + "/result/cross_validation_" + name + '.yaml', 'w') as f:
+
+        with open(self.path + "/result/cross_validation_" + name + "_" + test_name + '.yaml', 'w') as f:
             yaml.dump(result, f, default_flow_style=False)
 
-        with open(self.path + "/result/cross_validation_xyz_" + name + '.yaml', 'w') as f:
+        with open(self.path + "/result/cross_validation_xyz_" + name + "_" + test_name + '.yaml', 'w') as f:
             yaml.dump(result_xyz, f, default_flow_style=False)
 
-        with open(self.path + "/result/cross_validation_fail_" + name + '.yaml', 'w') as f:
+        with open(self.path + "/result/cross_validation_fail_" + name + "_" + test_name + '.yaml', 'w') as f:
             yaml.dump(fail_count, f, default_flow_style=False)
 
 
@@ -465,66 +488,72 @@ class DataMonster:
         self.net_proc_forward_layer(img, mask)
         conv5_data = copy.deepcopy(self.net.blobs['conv5'].data)
 
-        for filter_idx_5 in dist.filter_tree:
+        filter_idx_5_list = []
+        if self.ds.filter_test == 'top':
+            filter_idx_5_list = self.get_top_filters_in_list(conv5_data[0], dist.filter_tree, self.ds.conv5_top)
+        elif self.ds.filter_test == 'all':
+            filter_idx_5_list = dist.filter_tree
+
+        for filter_idx_5 in filter_idx_5_list:
             print filter_idx_5
             layer = 'conv5'
 
-            if not self.filter_response_pass_threshold(conv5_data[0,filter_idx_5], self.threshold[layer]):
+            if not self.filter_response_pass_threshold(conv5_data[0,filter_idx_5], self.ds.thres_conv5_test):
                 continue
 
-            if self.ds.localize_layer == 'filter':
-                xyz_dict[(filter_idx_5)] = self.get_max_xyz(conv5_data[0,filter_idx_5], pc_array, self.threshold[layer])
+            self.net_proc_forward_layer(img, mask)
+            self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
+            bp_5 = copy.deepcopy(self.net.blobs['data'].diff)
+            xyz_dict[(filter_idx_5,)], max_xy = self.get_avg_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
 
-
-            if self.ds.localize_layer == 'img':
-                self.net_proc_forward_layer(img, mask)
-                self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
-                bp_5 = copy.deepcopy(self.net.blobs['data'].diff)
-                xyz_dict[(filter_idx_5,)], max_xy = self.get_avg_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
-
-                self.show_gradient(str((filter_idx_5)), self.net.blobs['data'].diff, max_xy, 0)
+            self.show_gradient(str((filter_idx_5)), self.net.blobs['data'].diff, max_xy, 0)
 
             conv4_data = copy.deepcopy(self.net.blobs['conv4'].diff)
 
-            for filter_idx_4 in dist.filter_tree[filter_idx_5]:
+
+            filter_idx_4_list = []
+            if self.ds.filter_test == 'top':
+                filter_idx_4_list = self.get_top_filters_in_list(conv4_data[0], dist.filter_tree[filter_idx_5], self.ds.conv4_top)
+            elif self.ds.filter_test == 'all':
+                filter_idx_4_list = dist.filter_tree[filter_idx_5]
+
+            for filter_idx_4 in filter_idx_4_list:
                 print filter_idx_5, filter_idx_4
                 layer = 'conv4'
 
-                if not self.filter_response_pass_threshold(conv4_data[0,filter_idx_4], self.threshold[layer]):
+                if not self.filter_response_pass_threshold(conv4_data[0,filter_idx_4], self.ds.thres_conv4_test):
                     continue
 
-                if self.ds.localize_layer == 'filter':
-                    xyz_dict[(filter_idx_5, filter_idx_4)] = self.get_max_xyz(conv4_data[0,filter_idx_4], pc_array, self.threshold[layer])
+                self.net_proc_forward_layer(img, mask)
+                self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
 
-                if self.ds.localize_layer == 'img':
-                    self.net_proc_forward_layer(img, mask)
-                    self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
+                bp_4 = copy.deepcopy(self.net.blobs['data'].diff)
+                xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_avg_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
 
-                    bp_4 = copy.deepcopy(self.net.blobs['data'].diff)
-                    xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_avg_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
-
-                    self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'].diff, max_xy, 0)
+                self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'].diff, max_xy, 0)
 
                 conv3_data = copy.deepcopy(self.net.blobs['conv3'].diff)
 
-                for filter_idx_3 in dist.filter_tree[filter_idx_5][filter_idx_4]:
+                filter_idx_3_list = []
+                if self.ds.filter_test == 'top':
+                    filter_idx_3_list = self.get_top_filters_in_list(conv3_data[0], dist.filter_tree[filter_idx_5][filter_idx_4], self.ds.conv3_top)
+                elif self.ds.filter_test == 'all':
+                    filter_idx_3_list = dist.filter_tree[filter_idx_5][filter_idx_4]
+
+                for filter_idx_3 in filter_idx_3_list:
                     print filter_idx_5, filter_idx_4, filter_idx_3
                     layer = 'conv3'
 
-                    if not self.filter_response_pass_threshold(conv3_data[0,filter_idx_3], self.threshold[layer]):
+                    if not self.filter_response_pass_threshold(conv3_data[0,filter_idx_3], self.ds.thres_conv3_test):
                         continue
 
-                    if self.ds.localize_layer == 'filter':
-                        xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = self.get_max_xyz(conv3_data[0,filter_idx_3], pc_array, self.threshold[layer])
+                    self.net_proc_forward_layer(img, mask)
+                    self.net_proc_backward_with_data(filter_idx_3, conv3_data[0], layer)
 
-                    if self.ds.localize_layer == 'img':
-                        self.net_proc_forward_layer(img, mask)
-                        self.net_proc_backward_with_data(filter_idx_3, conv3_data[0], layer)
+                    bp_3 = copy.deepcopy(self.net.blobs['data'].diff)
+                    xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_avg_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
 
-                        bp_3 = copy.deepcopy(self.net.blobs['data'].diff)
-                        xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_avg_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
-
-                        self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'].diff, max_xy, 0)
+                    self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'].diff, max_xy, 0)
 
         return xyz_dict
 
@@ -601,7 +630,7 @@ class DataMonster:
         # print "max hist", max_hist
         if self.ds.top_filter == 'above':
             filter_idx_list = np.argsort(hist)[::-1]
-        else:
+        elif self.ds.top_filter == 'max':
             filter_idx_list = np.argsort(max_sum)[::-1]
 
         # print "top filters counts", hist[filter_idx_list[0:number+10]]
@@ -651,6 +680,23 @@ class DataMonster:
             return False
         else:
             return True
+
+    def get_top_filters_in_list(self, layer_response, filter_tree, number):
+
+        filter_list = list(filter_tree)
+        max_list = np.zeros(len(filter_list))
+        for i, filter_id in enumerate(filter_list):
+            max_list[i] = np.amax(layer_response[filter_id])
+
+        sorted_idx_list = np.argsort(max_list)[::-1]
+        sorted_idx_list = sorted_idx_list[0:number]
+
+        sorted_filter_idx_list = []
+        for idx in sorted_idx_list:
+            sorted_filter_idx_list.append(filter_list[idx])
+
+        return sorted_filter_idx_list
+
 
 
     # returns a distribution list of shape(num_frames, number of filters, num of data, 3)
@@ -1114,12 +1160,8 @@ if __name__ == '__main__':
             print "'" + data.name + "'" , ", # ", i
 
     elif mode == 4:
-        # distribution = Distribution()
-        # case = '[side_wrap:cylinder]'
-        #
-        # distribution.load(settings.ros_dir + '/data/', case + name)
 
-        data_monster.cross_validation(settings.ros_dir, name)#distribution)
+        data_monster.cross_validation(settings.ros_dir, name, False)
 
     elif mode == 5:
         dist1 = Distribution()

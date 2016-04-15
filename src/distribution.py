@@ -86,6 +86,12 @@ class Distribution:
         self.data_dict = dist.data_dict
         self.filter_tree = dist.filter_tree
 
+    def load_exact(self, path, name):
+        f = open(path + name + '.yaml')
+        dist = yaml.load(f)
+        self.data_dict = dist.data_dict
+        self.filter_tree = dist.filter_tree
+
 def remove_nan(point_list):
     new_list = np.array([]).reshape([0,3])
     for point in point_list:
