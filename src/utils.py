@@ -128,7 +128,8 @@ class DescriptorHandler:
 
 
     def get_next(self):
-
+        if len(self.file_tag_list) == 0:
+            return None
         idx = (self.count) % len(self.file_tag_list)
         desc = self.descriptor_dict[self.file_tag_list[idx]]
         self.count += 1

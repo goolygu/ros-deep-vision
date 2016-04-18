@@ -51,20 +51,20 @@ class Data:
 
 
 class DataCollector:
-    def __init__(self):
+    def __init__(self, path):
 
         self.bridge = CvBridge()
-        rospack = rospkg.RosPack()
-        self.ros_dir = rospack.get_path('ros_deep_vision')
-        self.lock = threading.Lock()
 
+
+        self.lock = threading.Lock()
+        self.path = path
         # self.pose_topic =  "/rviz_moveit_motion_planning_display/robot_interaction_interactive_marker_topic/feedback"
         # self.pose_sub = rospy.Subscriber(self.pose_topic, InteractiveMarkerFeedback, self.pose_callback, queue_size=1)
         # self.rgb_sub = rospy.Subscriber("/r2/head/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
         # self.depth_sub = rospy.Subscriber("/r2/head/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
 
-        self.rgb_sub = rospy.Subscriber("/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
-        self.depth_sub = rospy.Subscriber("/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
+        self.rgb_sub = rospy.Subscriber("/r2/head/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
+        self.depth_sub = rospy.Subscriber("/r2/head/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
 
         self.mask_sub = rospy.Subscriber("/image_mask",Image, self.mask_callback, queue_size=1)
         self.listener = tf.TransformListener()
@@ -78,6 +78,15 @@ class DataCollector:
         rospy.wait_for_service('save_point_cloud')
         try:
             save_point_cloud = rospy.ServiceProxy('save_point_cloud', SaveData)
+            resp = save_point_cloud(req)
+            return resp.result
+        except rospy.ServiceException, e:
+            print "Service call failed: %s"%e
+
+    def save_point_cloud_current(self, req):
+        rospy.wait_for_service('save_point_cloud_current')
+        try:
+            save_point_cloud = rospy.ServiceProxy('save_point_cloud_current', SaveData)
             resp = save_point_cloud(req)
             return resp.result
         except rospy.ServiceException, e:
@@ -112,7 +121,7 @@ class DataCollector:
     #         self.ee_pose = data.pose
 
     def save_images(self, name):
-        base_name = self.ros_dir + "/data/" + name
+        base_name = self.path + name
         with self.lock:
             cv2.imwrite(base_name + "_rgb.png", self.rgb_image)
             cv2.imwrite(base_name + "_depth.png", self.depth_image)
@@ -126,7 +135,7 @@ class DataCollector:
     def get_pose_dict(self):
         pose_dict = {}
         for frame in self.frame_list:
-            (trans,rot) = self.get_pose('/r2/asus_frame', frame)
+            (trans,rot) = self.get_pose('/r2/head/asus_frame', frame)
             pose_dict[frame] = (trans,rot)
         return pose_dict
 
@@ -142,7 +151,7 @@ class DataCollector:
         with self.lock:
             data.set(name, pose_dict, req.action, req.target_type, req.result)
 
-        with open(self.ros_dir + "/data/" + name + '_data.yaml', 'w') as outfile:
+        with open(self.path + name + '_data.yaml', 'w') as outfile:
             outfile.write( yaml.dump(data) )
 
         self.save_images(name)
@@ -153,6 +162,8 @@ class DataCollector:
 
 if __name__ == '__main__':
     rospy.init_node('data_collector', anonymous=False)
-    data_collector = DataCollector()
+    rospack = rospkg.RosPack()
+    ros_dir = rospack.get_path('ros_deep_vision')
+    data_collector = DataCollector(ros_dir + "/data/")
 
     rospy.spin()

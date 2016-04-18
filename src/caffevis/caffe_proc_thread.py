@@ -214,7 +214,7 @@ class CaffeProcThread(CodependentThread):
                 self.save_descriptor()
 
             # switch descriptor for match and back prop
-            if self.descriptor is None or self.state.next_descriptor:
+            if self.state.next_descriptor:
                     print 'load descriptor'
                     self.descriptor = self.descriptor_handler.get_next()
                     self.state.next_descriptor = False
