@@ -19,7 +19,14 @@ class Distribution:
     def merge(self, dist):
         for sig in dist.data_dict:
             if sig in self.data_dict:
-                self.data_dict[sig] = self.data_dict[sig] + dist.data_dict[sig]
+                # a list of all frames in both dict[sig]
+                frame_list = list(set(self.data_dict[sig].keys() + dist.data_dict[sig].keys()))
+                for frame in frame_list:
+                    if not frame in self.data_dict[sig]:
+                        self.data_dict[sig][frame] = []
+                    if not frame in dist.data_dict[sig]:
+                        dist.data_dict[sig][frame] = []
+                    self.data_dict[sig][frame] += dist.data_dict[sig][frame]
             else:
                 self.data_dict[sig] = dist.data_dict[sig]
 
@@ -30,7 +37,7 @@ class Distribution:
         '''update first dict with second recursively'''
         for k, v in d1.iteritems():
             if k in d2:
-                d2[k] = rec_merge2(v, d2[k])
+                d2[k] = self.rec_merge(v, d2[k])
         d1.update(d2)
         return d1
 

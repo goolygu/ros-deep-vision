@@ -77,7 +77,7 @@ caffevis_unit_jpg_dir    = ros_dir + '/models/caffenet-yos/unit_jpg_vis'
 
 caffevis_data_hw         = (227,227)
 caffevis_label_layers    = ('fc8', 'prob')
-caffevis_mode_gpu        = False
+caffevis_mode_gpu        = True
 caffevis_pause_after_keys = .10     # Pause Caffe forward/backward computation for this many seconds after a keypress. This is to keep the processor free for a brief period after a keypress, which allow the interface to feel much more responsive. After this period has passed, Caffe resumes computation, in CPU mode often occupying all cores. Default: .1
 caffevis_frame_wait_sleep = .01
 #caffevis_frame_wait_sleep = 2.0

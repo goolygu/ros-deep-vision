@@ -99,12 +99,15 @@ class DataMonster:
     def set_path(self, path):
         self.path = path
 
-    def train_each_case(self):
+    def train_each_case(self, tbp):
         data_dic = get_data_dic(self.path, dl.data_name_list)
         dist_dic = {}
         for case in data_dic:
             print "train case", case
-            dist_dic[case] = self.train(data_dic[case])
+            if tbp:
+                dist_dic[case] = self.train(data_dic[case])
+            else:
+                dist_dic[case] = self.train_without_tbp(data_dic[case])
         return dist_dic
 
     def train_all(self):
@@ -186,27 +189,82 @@ class DataMonster:
 
         return distribution
 
-    def cross_validation(self, path, name, train):
+    def train_without_tbp(self, data_list):
+        distribution = Distribution()
+
+        img_list, mask_list = self.load_img_mask(data_list, self.path)
+
+        conv5_list = self.load_conv5(img_list, mask_list)
+        conv4_list, conv3_list = self.load_conv4_conv3(img_list, mask_list)
+
+        filter_idx_list_conv5 = self.find_consistent_filters(conv5_list, self.threshold["conv5"], self.ds.n_conv5_f)
+        print "consistent filter conv5", filter_idx_list_conv5
+
+        filter_idx_list_conv4 = self.find_consistent_filters(conv4_list, self.threshold["conv4"], self.ds.n_conv4_f)
+        print "consistent filter conv4", filter_idx_list_conv4
+
+        filter_idx_list_conv3 = self.find_consistent_filters(conv3_list, self.threshold["conv3"], self.ds.n_conv3_f)
+        print "consistent filter conv3", filter_idx_list_conv3
+
+        distribution.set_tree_list([],np.append(filter_idx_list_conv5, -1))
+        distribution.set_tree_list([-1],np.append(filter_idx_list_conv4, -1))
+        distribution.set_tree_list([-1, -1],filter_idx_list_conv3)
+
+        bp_list_4 = np.zeros([len(data_list)] + [len(filter_idx_list_conv4)] + list(self.net.blobs["data"].diff.shape[2:]))
+        bp_list_3 = np.zeros([len(data_list)] + [len(filter_idx_list_conv3)] + list(self.net.blobs["data"].diff.shape[2:]))
+
+
+        for i, filter_idx_4 in enumerate(filter_idx_list_conv4):
+            if filter_idx_4 == -1:
+                continue
+            print "handling filter", filter_idx_4, "layer conv4"
+            conv3_list_tbp, bp_layers_4 = self.load_layer_fix_filter("conv3", "conv4", conv4_list, img_list, mask_list, filter_idx_4)
+            bp_list_4[:,i,:] = bp_layers_4
+
+        for j, filter_idx_3 in enumerate(filter_idx_list_conv3):
+            print "handling filter", filter_idx_3, "layer conv3"
+            conv2_list_tbp, bp_layers_3 = self.load_layer_fix_filter("conv2", "conv3", conv3_list, img_list, mask_list, filter_idx_3)
+            bp_list_3[:, j,:] = bp_layers_3
+
+        dist_list_3 = self.gen_distribution_bp(filter_idx_list_conv3, data_list, conv3_list, bp_list_3, self.ds.frame_list_conv3, self.threshold["conv3"], 'conv3')
+        self.set_distribution(distribution, self.ds.frame_list_conv3, filter_idx_list_conv3, dist_list_3, [-1, -1])
+
+        dist_list_4 = self.gen_distribution_bp(filter_idx_list_conv4, data_list, conv4_list, bp_list_4, self.ds.frame_list_conv4, self.threshold["conv4"], 'conv4')
+        self.set_distribution(distribution, self.ds.frame_list_conv4, filter_idx_list_conv4, dist_list_4, [-1])
+
+        return distribution
+
+    def cross_validation(self, path, name, train, tbp):
         self.visualize = False
-        evaluate_on_full_dist = False
 
         data_name_dic = get_data_name_dic(self.path, dl.data_name_list)
         dist_dic = {}
         result_xyz = {}
         result = {}
         fail_count = {}
+        if tbp:
+            data_path = path + '/data/'
+        else:
+            data_path = path + '/data_notbp/'
 
-        if evaluate_on_full_dist:
+        if self.ds.evaluate == 'full':
             full_distribution = {}
 
             for case in data_name_dic:
-                print "full training", case
-                train_data_list_full = []
-                for j, train_object in enumerate(data_name_dic[case]):
-                    train_data_list_full = train_data_list_full + data_name_dic[case][train_object]
+                if os.path.isfile(data_path + "distribution/" + "[" + case + "]" + name + ".yaml"):
+                    full_distribution[case] = Distribution()
+                    full_distribution[case].load(data_path, "[" + case + "]" + name)
+                else:
+                    print "full training", case
+                    train_data_list_full = []
+                    for j, train_object in enumerate(data_name_dic[case]):
+                        train_data_list_full = train_data_list_full + data_name_dic[case][train_object]
 
-                full_distribution[case] = self.train(train_data_list_full)
-                full_distribution[case].save(path + '/data/', "[" + case + "]" + name)
+                    if tbp:
+                        full_distribution[case] = self.train(train_data_list_full)
+                    else:
+                        full_distribution[case] = self.train_without_tbp(train_data_list_full)
+                    full_distribution[case].save(data_path, "[" + case + "]" + name)
 
         train_data_list = {}
         test_data_list = {}
@@ -234,16 +292,13 @@ class DataMonster:
                 print "train case", case
                 for i, test_object in enumerate(data_name_dic[case]):
                     print "leave", i, test_object, "out"
+                    if tbp:
+                        distribution = self.train(train_data_list[case][test_object])
+                    else:
+                        distribution = self.train_without_tbp(train_data_list[case][test_object])
 
-                    distribution = self.train(train_data_list[case][test_object])
-
-                    if evaluate_on_full_dist:
-                        for other_case in full_distribution:
-                            if other_case != case:
-                                distribution.merge(full_distribution[other_case])
                     # print "test_data_list", test_data_list
-
-                    distribution.save_exact(path + '/data/distribution/cross_validation/', "[" + case + "][leave_" + test_object + "]" + name)
+                    distribution.save_exact(data_path + '/distribution/cross_validation/', "[" + case + "][leave_" + test_object + "]" + name)
 
         # test
         for k, case in enumerate(data_name_dic):
@@ -254,8 +309,14 @@ class DataMonster:
             for i, test_object in enumerate(data_name_dic[case]):
                 print "test", i, test_object
                 distribution = Distribution()
-                distribution.load_exact(path + '/data/distribution/cross_validation/', "[" + case + "][leave_" + test_object + "]" + name)
-                result_xyz[case][test_object], result[case][test_object], fail_count[case][test_object] = self.test_accuracy(distribution, test_data_list[case][test_object])
+                distribution.load_exact(data_path + '/distribution/cross_validation/', "[" + case + "][leave_" + test_object + "]" + name)
+
+                if self.ds.evaluate == 'full':
+                    for other_case in full_distribution:
+                        if other_case != case:
+                            distribution.merge(full_distribution[other_case])
+
+                result_xyz[case][test_object], result[case][test_object], fail_count[case][test_object] = self.test_accuracy(distribution, test_data_list[case][test_object], tbp)
 
         accuracy_sum = 0.0
         count = 0.0
@@ -271,17 +332,17 @@ class DataMonster:
         test_name = self.ds.get_test_name()
 
 
-        with open(self.path + "/result/cross_validation_" + name + "_" + test_name + '.yaml', 'w') as f:
+        with open(data_path + "/result/cross_validation_" + name + "_" + test_name + '.yaml', 'w') as f:
             yaml.dump(result, f, default_flow_style=False)
 
-        with open(self.path + "/result/cross_validation_xyz_" + name + "_" + test_name + '.yaml', 'w') as f:
+        with open(data_path + "/result/cross_validation_xyz_" + name + "_" + test_name + '.yaml', 'w') as f:
             yaml.dump(result_xyz, f, default_flow_style=False)
 
-        with open(self.path + "/result/cross_validation_fail_" + name + "_" + test_name + '.yaml', 'w') as f:
+        with open(data_path + "/result/cross_validation_fail_" + name + "_" + test_name + '.yaml', 'w') as f:
             yaml.dump(fail_count, f, default_flow_style=False)
 
 
-    def test_accuracy(self, distribution, data_list):
+    def test_accuracy(self, distribution, data_list, tbp):
 
         img_list, mask_list = self.load_img_mask(data_list, self.path)
 
@@ -291,8 +352,11 @@ class DataMonster:
 
         for idx, data in enumerate(data_list):
             print data.name
-
-            filter_xyz_dict = self.get_all_filter_xyz(data, distribution, img_list[idx], mask_list[idx])
+            filter_xyz_dict = {}
+            if tbp:
+                filter_xyz_dict = self.get_all_filter_xyz(data, distribution, img_list[idx], mask_list[idx])
+            else:
+                filter_xyz_dict = self.get_all_filter_xyz_notbp(data, distribution, img_list[idx], mask_list[idx])
 
             distribution_cf = self.get_distribution_cameraframe(distribution, filter_xyz_dict)
 
@@ -302,19 +366,22 @@ class DataMonster:
                 self.show_point_cloud(data.name)
                 self.show_distribution(distribution_cf)
             # print "avg", avg_dic
+            frame_gt_xyz = {}
             for frame in avg_dic:
                 # get ground truth frame location
-                frame_xyz = np.array(self.get_frame_xyz(data, frame))
+                frame_gt_xyz[frame] = np.array(self.get_frame_xyz(data, frame))
                 if not frame in diff_sum_dic:
                     diff_sum_dic[frame] = np.array([0.,0.,0.])
                     diff_count[frame] = 0
                     diff_fail[frame] = 0
                 # print "frame_xyz", frame_xyz
                 if not np.isnan(avg_dic[frame][0]):
-                    diff_sum_dic[frame] += np.absolute(frame_xyz - avg_dic[frame])
+                    diff_sum_dic[frame] += np.absolute(frame_gt_xyz[frame] - avg_dic[frame])
                     diff_count[frame] += 1
                 else:
                     diff_fail[frame] += 1
+            if self.visualize:
+                self.show_frames(frame_gt_xyz, "gt", None)
 
         diff_avg_dic = {}
         diff_dist_dic = {}
@@ -361,7 +428,20 @@ class DataMonster:
         new_dist.filter_tree = dist.filter_tree
         return new_dist
 
+    def show_frames(self, frames_xyz, name, color_map):
+        if color_map == None:
+            color_map = {}
+            color_map["r2/left_palm"] = (0.5,0.5,0)
+            color_map["r2/left_thumb_tip"] = (0.5,0.5,0)
+            color_map["r2/left_index_tip"] = (0.5,0.5,0)
+        count = 0
 
+        if self.visualize:
+            while not rospy.is_shutdown() and count < 5000:
+                for frame in frames_xyz:
+                    ns = name + frame
+                    self.publish_sphere_list([frames_xyz[frame]], color_map[frame], 0, ns)
+                count += 1
     def model_distribution(self, dist_cf):
         dist_list = {}
         dist_list["r2/left_palm"] = np.array([]).reshape([0,3])
@@ -384,18 +464,21 @@ class DataMonster:
             else:
                 avg_dic[frame] = find_max_density(dist_list[frame])
 
+
         color_map = {}
         color_map["r2/left_palm"] = (0.5,0,0)
         color_map["r2/left_thumb_tip"] = (0,0.5,0)
         color_map["r2/left_index_tip"] = (0,0,0.5)
-        count = 0
 
-        if self.visualize:
-            while not rospy.is_shutdown() and count < 10000:
-                for frame in avg_dic:
-                    ns = frame
-                    self.publish_sphere_list([avg_dic[frame]], color_map[frame], 0, ns)
-                count += 1
+        self.show_frames(avg_dic, "", color_map)
+        # count = 0
+        #
+        # if self.visualize:
+        #     while not rospy.is_shutdown() and count < 10000:
+        #         for frame in avg_dic:
+        #             ns = frame
+        #             self.publish_sphere_list([avg_dic[frame]], color_map[frame], 0, ns)
+        #         count += 1
 
         return avg_dic
 
@@ -436,6 +519,7 @@ class DataMonster:
 
 
     def get_distribution_cameraframe(self, dist, filter_xyz_dict):
+
         dist_cf = copy.deepcopy(dist.data_dict)
         for sig in dist.data_dict:
             for frame in dist.data_dict[sig]:
@@ -462,28 +546,110 @@ class DataMonster:
     #         xyz = max_xyz_list[i]
     #         xyz_dict[parent_filters + [filter_idx]] = xyz
 
-    def get_max_xyz(self, filter_data, pc_array, threshold):
-        resize_ratio = get_after_crop_size()[0] / filter_data.shape[0]
-        receptive_field_size = int(round(resize_ratio))
-        receptive_grid = self.gen_receptive_grid(receptive_field_size)
+    # def get_max_xyz(self, filter_data, pc_array, threshold):
+    #     resize_ratio = get_after_crop_size()[0] / filter_data.shape[0]
+    #     receptive_field_size = int(round(resize_ratio))
+    #     receptive_grid = self.gen_receptive_grid(receptive_field_size)
+    #
+    #     max_xy = self.get_filter_max_xy(filter_data, threshold)
+    #     orig_xy = self.get_orig_xy(max_xy, resize_ratio)
+    #     max_xyz = self.get_average_xyz_from_point_cloud_array(pc_array, [orig_xy], receptive_grid)
+    #     return max_xyz[0]
 
-        max_xy = self.get_filter_max_xy(filter_data, threshold)
-        orig_xy = self.get_orig_xy(max_xy, resize_ratio)
-        max_xyz = self.get_average_xyz_from_point_cloud_array(pc_array, [orig_xy], receptive_grid)
-        return max_xyz[0]
+    def get_filter_xyz(self, layer_data, pc_array, threshold):
+        resize_ratio = float(get_after_crop_size()[0]) / float(layer_data.shape[0])
+        if True:
+            filter_xy = self.get_filter_avg_xy(layer_data, threshold)
+        else:
+            filter_xy = self.get_filter_max_xy(layer_data, threshold)
+        orig_xy = self.get_orig_xy(filter_xy, resize_ratio)
+        filter_xyz = self.get_average_xyz_from_point_cloud_array(pc_array, [orig_xy], self.average_grid)
+        return filter_xyz[0], filter_xy
 
-    def get_avg_xyz(self, layer_data, pc_array, threshold):
-        resize_ratio = get_after_crop_size()[0] / layer_data.shape[0]
 
-        avg_xy = self.get_filter_avg_xy(layer_data, threshold)
-        orig_xy = self.get_orig_xy(avg_xy, resize_ratio)
-        avg_xyz = self.get_average_xyz_from_point_cloud_array(pc_array, [orig_xy], self.average_grid)
-        return avg_xyz[0], avg_xy
+    def get_all_filter_xyz_notbp(self, data, dist, img, mask):
 
+        pc_array = self.get_point_cloud_array(self.path, data.name, self.ds.pointcloud)
+        xyz_dict = {}
+        self.net_proc_forward_layer(img, mask)
+        conv5_data = copy.deepcopy(self.net.blobs['conv5'].data)
+        conv4_data = copy.deepcopy(self.net.blobs['conv4'].data)
+        conv3_data = copy.deepcopy(self.net.blobs['conv3'].data)
+
+        filter_idx_5_list = []
+        if self.ds.filter_test == 'top':
+            filter_idx_5_list = self.get_top_filters_in_list(conv5_data[0], dist.filter_tree, self.ds.conv5_top)
+        elif self.ds.filter_test == 'all':
+            filter_idx_5_list = dist.filter_tree
+
+        for filter_idx_5 in filter_idx_5_list:
+            if filter_idx_5 == -1:
+                continue
+
+            print 'conv5', filter_idx_5
+            layer = 'conv5'
+
+            if not self.filter_response_pass_threshold(conv5_data[0,filter_idx_5], self.ds.thres_conv5_test):
+                continue
+
+            self.net_proc_forward_layer(img, mask)
+            self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
+            bp_5 = copy.deepcopy(self.net.blobs['data'].diff)
+            xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
+
+            self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
+
+
+        filter_idx_4_list = []
+        if self.ds.filter_test == 'top':
+            filter_idx_4_list = self.get_top_filters_in_list(conv4_data[0], dist.filter_tree[-1], self.ds.conv4_top)
+        elif self.ds.filter_test == 'all':
+            filter_idx_4_list = dist.filter_tree[-1]
+
+        for filter_idx_4 in filter_idx_4_list:
+            if filter_idx_4 == -1:
+                continue
+            print 'conv4', filter_idx_4
+            layer = 'conv4'
+
+            if not self.filter_response_pass_threshold(conv4_data[0,filter_idx_4], self.ds.thres_conv4_test):
+                continue
+
+            self.net_proc_forward_layer(img, mask)
+            self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
+
+            bp_4 = copy.deepcopy(self.net.blobs['data'].diff)
+            xyz_dict[(-1, filter_idx_4)], max_xy = self.get_filter_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
+
+            self.show_gradient(str((-1, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
+
+
+        filter_idx_3_list = []
+        if self.ds.filter_test == 'top':
+            filter_idx_3_list = self.get_top_filters_in_list(conv3_data[0], dist.filter_tree[-1][-1], self.ds.conv3_top)
+        elif self.ds.filter_test == 'all':
+            filter_idx_3_list = dist.filter_tree[-1][-1]
+
+        for filter_idx_3 in filter_idx_3_list:
+            print 'conv3', filter_idx_3
+            layer = 'conv3'
+
+            if not self.filter_response_pass_threshold(conv3_data[0,filter_idx_3], self.ds.thres_conv3_test):
+                continue
+
+            self.net_proc_forward_layer(img, mask)
+            self.net_proc_backward_with_data(filter_idx_3, conv3_data[0], layer)
+
+            bp_3 = copy.deepcopy(self.net.blobs['data'].diff)
+            xyz_dict[(-1, -1, filter_idx_3)], max_xy = self.get_filter_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
+
+            self.show_gradient(str((-1, -1, filter_idx_3)), self.net.blobs['data'], max_xy, 0)
+
+        return xyz_dict
 
     def get_all_filter_xyz(self, data, dist, img, mask):
 
-        pc_array = self.get_point_cloud_array(self.path, data.name)
+        pc_array = self.get_point_cloud_array(self.path, data.name, self.ds.pointcloud)
         xyz_dict = {}
         self.net_proc_forward_layer(img, mask)
         conv5_data = copy.deepcopy(self.net.blobs['conv5'].data)
@@ -504,10 +670,10 @@ class DataMonster:
             self.net_proc_forward_layer(img, mask)
             self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
             bp_5 = copy.deepcopy(self.net.blobs['data'].diff)
-            xyz_dict[(filter_idx_5,)], max_xy = self.get_avg_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
+            xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
 
-            self.show_gradient(str((filter_idx_5)), self.net.blobs['data'].diff, max_xy, 0)
-
+            self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
+            # self.show_depth(str((filter_idx_5))+'depth', self.net.blobs['data'].data, pc_array)
             conv4_data = copy.deepcopy(self.net.blobs['conv4'].diff)
 
 
@@ -528,9 +694,9 @@ class DataMonster:
                 self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
 
                 bp_4 = copy.deepcopy(self.net.blobs['data'].diff)
-                xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_avg_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
+                xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
 
-                self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'].diff, max_xy, 0)
+                self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
 
                 conv3_data = copy.deepcopy(self.net.blobs['conv3'].diff)
 
@@ -551,19 +717,46 @@ class DataMonster:
                     self.net_proc_backward_with_data(filter_idx_3, conv3_data[0], layer)
 
                     bp_3 = copy.deepcopy(self.net.blobs['data'].diff)
-                    xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_avg_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
+                    xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_filter_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
 
-                    self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'].diff, max_xy, 0)
+                    self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'], max_xy, 0)
 
         return xyz_dict
 
-    def show_gradient(self, name, grad_blob, xy_dot=(0,0), threshold=0):
+    def show_depth(self, name, layer_data, pc_array):
+
+        img = layer_data[0]
+        img = img.transpose((1,2,0))
+        img = norm01c(img, 0)
+        img_size = layer_data[0].shape[1]
+        resize_ratio = float(get_after_crop_size()[0]) / float(img_size)
+
+        for x in range(0, img_size):
+            for y in range(0, img_size):
+
+                orig_xy = self.get_orig_xy([x,y], resize_ratio)
+                m_idx = np.array([[round(orig_xy[0])],[round(orig_xy[1])]])
+                # print "m idx", m_idx
+                xy_index = np.ravel_multi_index(m_idx.astype(int),(480,640))
+                # print "xy", xy_index
+                if np.isnan(pc_array[xy_index[0]][0]):
+                    img[x,y] = [1,0,0]
+                # else:
+                #     img[x,y] = [0,0,pc_array[xy_index[0]][2]]
+        img = norm01c(img, 0)
+        cv2.imshow(name, img)
+        cv2.waitKey(100)
+
+    def show_gradient(self, name, data_layer, xy_dot=(0,0), threshold=0):
         if not self.visualize or not self.show_backprop:
             return
+        grad_blob = data_layer.diff
         grad_blob = grad_blob[0]                    # bc01 -> c01
         grad_blob = grad_blob.transpose((1,2,0))    # c01 -> 01c
         grad_img = grad_blob[:, :, (2,1,0)]  # e.g. BGR -> RGB
 
+        img_blob = data_layer.data
+        img = img_blob[0].transpose((1,2,0))    # c01 -> 01c
         # grad_img2 = cv2.GaussianBlur(grad_img2, (5,5), 0)
         # grad_img = cv2.bilateralFilter(grad_img,9,75,75)
 
@@ -630,18 +823,20 @@ class DataMonster:
         # print "max hist", max_hist
         if self.ds.top_filter == 'above':
             filter_idx_list = np.argsort(hist)[::-1]
+            for i in range(number+1):
+                if hist[filter_idx_list[i]] == 0:
+                    number = i
+                    break
         elif self.ds.top_filter == 'max':
             filter_idx_list = np.argsort(max_sum)[::-1]
-
+            for i in range(number+1):
+                if max_sum[filter_idx_list[i]] <= 0:
+                    number = i
+                    break
         # print "top filters counts", hist[filter_idx_list[0:number+10]]
         # print "top filters", filter_idx_list[0:number+10]
         # print "max value", max_hist[filter_idx_list[0:number+10]]
 
-        for i in range(number+1):
-            if hist[filter_idx_list[i]] == 0:
-                number = i
-                # print "break", number
-                break
         return filter_idx_list[0:number]
 
     def get_filter_avg_xy(self, filter_response, threshold):
@@ -701,13 +896,14 @@ class DataMonster:
 
     # returns a distribution list of shape(num_frames, number of filters, num of data, 3)
     # distribution contains diff of frame xyz to feature xyz
+    # conv_list is for checking if pass threshold
     def gen_distribution_bp(self, filter_idx_list, data_list, conv_list, bp_list, frame_list, threshold, layer):
 
         dist_list = np.empty([len(frame_list),len(filter_idx_list),len(data_list),3])
         # 280/13
         img_size = get_after_crop_size()
         # resize_ratio = img_size[0] / bp_list.shape[2]
-        resize_ratio = img_size[0] / bp_list.shape[2]
+        resize_ratio = float(img_size[0]) / float(bp_list.shape[2])
 
         for idx, bp in enumerate(bp_list):
             print idx,
@@ -748,7 +944,7 @@ class DataMonster:
         # 280/13
         img_size = get_after_crop_size()
         # resize_ratio = img_size[0] / bp_list.shape[2]
-        resize_ratio = img_size[0] / conv_list.shape[2]
+        resize_ratio = float(img_size[0]) / float(conv_list.shape[2])
 
         receptive_field_size = int(round(resize_ratio))
         receptive_grid = self.gen_receptive_grid(receptive_field_size)
@@ -831,7 +1027,7 @@ class DataMonster:
         elif mode == 2:
             for idx in range(len(self.available_layer)-1):
                 output = self.net.forward(data=data_blob,start=self.available_layer[idx],end=self.available_layer[idx+1])
-                if self.available_layer[idx].startswith("conv"):
+                if self.ds.mask == "mask" and self.available_layer[idx].startswith("conv"):
                     self.mask_out(self.net.blobs[self.available_layer[idx]].data, mask)
 
 
@@ -852,7 +1048,7 @@ class DataMonster:
         if self.ds.backprop_xy == 'sin':
             x,y = np.unravel_index(np.argmax(data[filter_idx]), data[filter_idx].shape)
             diffs[0][filter_idx][x][y] = data[filter_idx][x][y]
-        else:
+        elif self.ds.backprop_xy == 'all':
             diffs[0][filter_idx] = data[filter_idx]
         assert self.back_mode in ('grad', 'deconv')
         if self.back_mode == 'grad':
@@ -878,14 +1074,18 @@ class DataMonster:
         # xv, yv = np.meshgrid(x,y)
         # return (xv, yv)
 
-    def get_point_cloud_array(self, path, name):
+    def get_point_cloud_array(self, path, name, seg):
         p = pcl.PointCloud()
-        p.from_file(path + name + "_seg.pcd")
+        if seg == 'seg':
+            p.from_file(path + name + "_seg.pcd")
+        elif seg == 'noseg':
+            p.from_file(path + name + ".pcd")
+        # print "width", p.width, "height", p.height, "size", p.size
         a = np.asarray(p)
         return a
 
     def get_average_xyz_from_point_cloud(self, path, name, max_xy_list, receptive_grid):
-        pc_array = self.get_point_cloud_array(path, name)
+        pc_array = self.get_point_cloud_array(path, name, "seg")
         return self.get_average_xyz_from_point_cloud_array(pc_array, max_xy_list, receptive_grid)
 
     def get_average_xyz_from_point_cloud_array(self, pc_array, max_xy_list, receptive_grid):
@@ -896,9 +1096,11 @@ class DataMonster:
                 output.append([float('nan'),float('nan'),float('nan')])
                 print "filter response zero no max xy", xy
                 continue
+
             grid = np.zeros(receptive_grid.shape)
             grid[0] = xy[0] + receptive_grid[0]
             grid[1] = xy[1] + receptive_grid[1]
+
             xy_receptive_list =np.reshape(grid, [2,-1])
             idx_receptive_list = np.ravel_multi_index(xy_receptive_list.astype(int),(480,640))
             avg = np.nanmean(pc_array[idx_receptive_list],axis=0)
@@ -1056,6 +1258,22 @@ class DataMonster:
             # print "shape", self.net.blobs['conv5'].data.shape
         return conv5_list
 
+    def load_conv4_conv3(self, img_list, mask_list):
+
+        conv4_list = np.array([]).reshape([0] + list(self.net.blobs['conv4'].data.shape[1:]))
+        conv3_list = np.array([]).reshape([0] + list(self.net.blobs['conv3'].data.shape[1:]))
+
+        for idx, img in enumerate(img_list):
+            print idx,
+            sys.stdout.flush()
+            # print "img", img.shape
+            self.net_proc_forward_layer(img, mask_list[idx])
+            # self.net_preproc_forward(img)
+            conv4_list = np.append(conv4_list, self.net.blobs['conv4'].data, axis=0)
+            conv3_list = np.append(conv3_list, self.net.blobs['conv3'].data, axis=0)
+            # print "shape", self.net.blobs['conv5'].data.shape
+        return conv4_list, conv3_list
+
     def load_layer_fix_filter(self, load_layer, fix_layer, fix_layer_data_list, img_list, mask_list, filter_idx):
 
         # layer_list = np.array([]).reshape([0] + list(self.net.blobs[load_layer].data.shape[1:]))
@@ -1115,11 +1333,18 @@ class DataMonster:
 if __name__ == '__main__':
     rospy.init_node('data_monster', anonymous=True)
 
-    ds = DataSettings()
+    tbp = True#False#
+    ds = DataSettings(tbp)
+    ds.tbp = tbp
     data_monster = DataMonster(settings, ds)
     path = settings.ros_dir + '/data/'
     data_monster.set_path(path)
     mode = 4
+
+    if tbp:
+        data_path = settings.ros_dir + '/data/'
+    else:
+        data_path = settings.ros_dir + '/data_notbp/'
 
     # naming convention layer-palm or finger, xxx filter each layer, self or auto picked filters,
     # max or avg xy position, back prop single or all, seg_point_cloud or full, number_train, deconv or grad,
@@ -1129,21 +1354,22 @@ if __name__ == '__main__':
     # train
     if mode == 0:
         # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_sin_seg_42_g_bxy_10_(20-3-0.5)_of'
-        dist_dic = data_monster.train_each_case()
+        dist_dic = data_monster.train_each_case(True)
 
         for case in dist_dic:
             dist_dic[case].save(settings.ros_dir + '/data/', "[" + case + "]" + name)
     # test
     elif mode == 1:
-        data_monster.show_backprop = False
+        data_monster.show_backprop = True#False#
         distribution = Distribution()
         case1 = '[side_wrap:cylinder]'
         case2 = '[side_wrap:cuboid]'
         # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_all_seg_42_g_bxy_10_(20-10-2)_of_f3'
-        distribution.load(settings.ros_dir + '/data/', case2 + name)
 
-        data_list = [get_data_by_name(path,dl.data_name_list[16])]
-        diff_avg_dic, diff_dist_dic, diff_fail = data_monster.test_accuracy(distribution, data_list)
+        distribution.load(data_path, case1 + case2 + name)
+
+        data_list = [get_data_by_name(path,dl.data_name_list[69])]
+        diff_avg_dic, diff_dist_dic, diff_fail = data_monster.test_accuracy(distribution, data_list, tbp)
         print diff_dist_dic
 
     # filter
@@ -1158,23 +1384,32 @@ if __name__ == '__main__':
         data_all = get_data_all(settings.ros_dir + '/data/')
         for i, data in enumerate(data_all):
             print "'" + data.name + "'" , ", # ", i
-
+    # cross validation
     elif mode == 4:
 
-        data_monster.cross_validation(settings.ros_dir, name, False)
+        retrain = False#True#
+        data_monster.cross_validation(settings.ros_dir, name, retrain, tbp)
 
+    # merge
     elif mode == 5:
         dist1 = Distribution()
         case1 = '[side_wrap:cylinder]'
-        dist1.load(settings.ros_dir + '/data/', case1 + name)
+        dist1.load(data_path, case1 + name)
 
         dist2 = Distribution()
         case2 = '[side_wrap:cuboid]'
-        dist2.load(settings.ros_dir + '/data/', case2 + name)
+        dist2.load(data_path, case2 + name)
 
         dist1.merge(dist2)
-        dist1.save(settings.ros_dir + '/data/', case1 + case2 + name)
+        dist1.save(data_path, case1 + case2 + name)
 
+    # train
+    elif mode == 6:
+        # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_sin_seg_42_g_bxy_10_(20-3-0.5)_of'
+        dist_dic = data_monster.train_each_case(False)
+
+        for case in dist_dic:
+            dist_dic[case].save(settings.ros_dir + '/data_notbp', "[" + case + "]" + name)
 
     print "done"
     raw_input()
