@@ -14,18 +14,25 @@ import time
 class GraspGenerator:
     def __init__(self, settings):
         rospy.init_node('grasp_generator', anonymous=True)
-        ds = DataSettings()
+        self.tbp = True#False#
+        ds = DataSettings(self.tbp)
         self.data_monster = DataMonster(settings, ds)
+        self.data_monster.visualize = True
         self.path = settings.ros_dir + '/data/'
+        if self.tbp:
+            self.data_path = settings.ros_dir + '/data/'
+        else:
+            self.data_path = settings.ros_dir + '/data_notbp/'
+
         self.data_monster.set_path(self.path + 'current/')
         self.data_collector = DataCollector(self.path + 'current/')
 
-        dist_name = '(4-p-3-f)_(3-5-7)_auto_max_all_seg_103_g_bxy_5_(30-5-0.2)_above'
-        self.data_monster.show_backprop = False
+        dist_name = ds.get_name()#'(4-p-3-f)_(3-5-7)_auto_max_all_seg_103_g_bxy_5_(30-5-0.2)_above'
+        self.data_monster.show_backprop = True#False#True
         self.distribution = Distribution()
         case1 = '[side_wrap:cylinder]'
         case2 = '[side_wrap:cuboid]'
-        self.distribution.load(self.path, case1 + dist_name)
+        self.distribution.load(self.data_path, case2 + dist_name)
 
         s = rospy.Service('get_grasp_points', GetGraspPoints, self.handle_get_grasp_points)
 
@@ -55,7 +62,12 @@ class GraspGenerator:
             time.sleep(0.1)
 
         # generate grasp points
-        filter_xyz_dict = self.data_monster.get_all_filter_xyz(data, self.distribution, img_list[0], mask_list[0])
+
+        if self.tbp:
+            filter_xyz_dict = self.data_monster.get_all_filter_xyz(data, self.distribution, img_list[0], mask_list[0])
+        else:
+            filter_xyz_dict = self.data_monster.get_all_filter_xyz_notbp(data, self.distribution, img_list[0], mask_list[0])
+        # filter_xyz_dict = self.data_monster.get_all_filter_xyz(data, self.distribution, img_list[0], mask_list[0])
 
         distribution_cf = self.data_monster.get_distribution_cameraframe(self.distribution, filter_xyz_dict)
         self.data_monster.show_point_cloud(data.name)
