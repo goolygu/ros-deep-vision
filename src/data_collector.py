@@ -96,6 +96,15 @@ class DataCollector:
         except rospy.ServiceException, e:
             print "Service call failed: %s"%e
 
+    def save_point_cloud_multi(self, req):
+        rospy.wait_for_service('save_point_cloud_multi')
+        try:
+            save_point_cloud = rospy.ServiceProxy('save_point_cloud_multi', SaveData)
+            resp = save_point_cloud(req)
+            return resp.result
+        except rospy.ServiceException, e:
+            print "Service call failed: %s"%e
+
     def rgb_callback(self,data):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -130,7 +139,7 @@ class DataCollector:
             cv2.imwrite(base_name + "_rgb.png", self.rgb_image)
             cv2.imwrite(base_name + "_depth.png", self.depth_image)
             cv2.imwrite(base_name + "_mask.png", self.mask_image)
-            cv2.imwrite(base_name + "_rgb_crop.png", crop_to_center(self.rgb_image))
+            # cv2.imwrite(base_name + "_rgb_crop.png", crop_to_center(self.rgb_image))
 
     def get_pose(self, base_frame, end_frame):
         (trans,rot) = self.listener.lookupTransform(base_frame, end_frame, rospy.Time(0))

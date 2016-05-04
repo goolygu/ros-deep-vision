@@ -40,6 +40,8 @@ from data_util import *
 
 from data_settings import *
 
+from input_manager import *
+
 class DataMonster:
 
     def __init__(self, settings, data_settings):
@@ -65,7 +67,8 @@ class DataMonster:
         self.threshold['conv3'] = self.ds.thres_conv3#2
         self.threshold['conv2'] = 0
         self.threshold['conv1'] = 0
-        self.marker_pub = rospy.Publisher('visualization_marker', Marker, queue_size=100)
+        self.marker_pub = {}
+        # self.marker_pub = rospy.Publisher('visualization_marker', Marker, queue_size=100)
 
 
         if settings.caffevis_mode_gpu:
@@ -86,15 +89,23 @@ class DataMonster:
         self.input_dims = self.net.blobs['data'].data.shape[2:4]    # e.g. (227,227)
 
         # self.resize_ratio = 280/self.input_dims[0]
-        self.xy_bias = get_crop_bias()
+
         self.back_mode = self.ds.back_prop_mode
         w = self.ds.avg_pointcloud_width
         self.average_grid = np.mgrid[-w:w,-w:w]
         self.visualize = True
         self.show_backprop = True
+        self.input_manager = InputManager()
+        self.xy_bias = self.input_manager.get_crop_bias()
+        self.image_size_orig = self.input_manager.get_after_crop_size()
         # self.data_file_list = []
 
         # self.descriptor_handler = DescriptorHandler(self.settings.ros_dir + '/eric_data_set/model_seg/', self.descriptor_layers)
+
+    def set_box(self, min_max_box, margin_ratio):
+        self.input_manager.set_box(min_max_box, margin_ratio)
+        self.xy_bias = self.input_manager.get_crop_bias()
+        self.image_size_orig = self.input_manager.get_after_crop_size()
 
     def set_path(self, path):
         self.path = path
@@ -440,7 +451,7 @@ class DataMonster:
             while not rospy.is_shutdown() and count < 5000:
                 for frame in frames_xyz:
                     ns = name + frame
-                    self.publish_sphere_list([frames_xyz[frame]], color_map[frame], 0, ns)
+                    self.publish_sphere_list([frames_xyz[frame]], color_map[frame], 0, ns, "grasp_target")
                 count += 1
     def model_distribution(self, dist_cf):
         dist_list = {}
@@ -500,7 +511,7 @@ class DataMonster:
             for sig in dist_cf:
                 for frame in dist_cf[sig]:
                     ns = "/" + "/".join([str(c) for c in sig]) + "-" + frame
-                    self.publish_point_list(dist_cf[sig][frame], color_map[frame], idx, ns)
+                    self.publish_point_list(dist_cf[sig][frame], color_map[frame], idx, ns, 'grasp_distribution')
                     # idx += 1
                 count += 1
 
@@ -509,14 +520,15 @@ class DataMonster:
         for sig in filter_xyz_dict:
             print sig, filter_xyz_dict[sig]
 
-        while not rospy.is_shutdown():
+        count = 0
+        while not rospy.is_shutdown() and count < 10000:
             idx = 0
             for sig in filter_xyz_dict:
                 ns = "/" + "/".join([str(c) for c in sig])
 
-                self.publish_point_list([filter_xyz_dict[sig]], (1,0,0), idx, ns)
+                self.publish_point_list([filter_xyz_dict[sig]], (1,0,0), idx, ns, 'feature')
                     # idx += 1
-
+            count += 1
 
     def get_distribution_cameraframe(self, dist, filter_xyz_dict):
 
@@ -557,7 +569,7 @@ class DataMonster:
     #     return max_xyz[0]
 
     def get_filter_xyz(self, layer_data, pc_array, threshold):
-        resize_ratio = float(get_after_crop_size()[0]) / float(layer_data.shape[0])
+        resize_ratio = float(self.image_size_orig[0]) / float(layer_data.shape[0])
         if True:
             filter_xy = self.get_filter_avg_xy(layer_data, threshold)
         else:
@@ -673,7 +685,7 @@ class DataMonster:
             xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
 
             self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
-            # self.show_depth(str((filter_idx_5))+'depth', self.net.blobs['data'].data, pc_array)
+            self.show_depth(str((filter_idx_5))+'depth', self.net.blobs['data'].data, pc_array)
             conv4_data = copy.deepcopy(self.net.blobs['conv4'].diff)
 
 
@@ -729,7 +741,7 @@ class DataMonster:
         img = img.transpose((1,2,0))
         img = norm01c(img, 0)
         img_size = layer_data[0].shape[1]
-        resize_ratio = float(get_after_crop_size()[0]) / float(img_size)
+        resize_ratio = float(self.image_size_orig[0]) / float(img_size)
 
         for x in range(0, img_size):
             for y in range(0, img_size):
@@ -771,7 +783,7 @@ class DataMonster:
         # xy_dot2 = xy_dot2.astype(int)
         # Mode-specific processing
 
-        back_filt_mode = 'raw'
+        back_filt_mode = 'norm'#'raw'
         if back_filt_mode == 'raw':
             grad_img = norm01c(grad_img, 0)
         elif back_filt_mode == 'gray':
@@ -804,6 +816,7 @@ class DataMonster:
         #             grad_img[i+xy_dot2[0],j+xy_dot2[1]] = [1,0,1]
 
         cv2.imshow(name, grad_img)
+        # cv2.imwrite(self.path + "visualize/" + name + "_grad.png", norm0255(grad_img))
         cv2.waitKey(100)
 
     def find_consistent_filters(self, conv_list, threshold, number):
@@ -901,9 +914,8 @@ class DataMonster:
 
         dist_list = np.empty([len(frame_list),len(filter_idx_list),len(data_list),3])
         # 280/13
-        img_size = get_after_crop_size()
         # resize_ratio = img_size[0] / bp_list.shape[2]
-        resize_ratio = float(img_size[0]) / float(bp_list.shape[2])
+        resize_ratio = float(self.image_size_orig[0]) / float(bp_list.shape[2])
 
         for idx, bp in enumerate(bp_list):
             print idx,
@@ -942,9 +954,8 @@ class DataMonster:
 
         dist_list = np.empty([len(frame_list),len(filter_idx_list),len(data_list),3])
         # 280/13
-        img_size = get_after_crop_size()
         # resize_ratio = img_size[0] / bp_list.shape[2]
-        resize_ratio = float(img_size[0]) / float(conv_list.shape[2])
+        resize_ratio = float(self.image_size_orig[0]) / float(conv_list.shape[2])
 
         receptive_field_size = int(round(resize_ratio))
         receptive_grid = self.gen_receptive_grid(receptive_field_size)
@@ -1085,7 +1096,7 @@ class DataMonster:
         return a
 
     def get_average_xyz_from_point_cloud(self, path, name, max_xy_list, receptive_grid):
-        pc_array = self.get_point_cloud_array(path, name, "seg")
+        pc_array = self.get_point_cloud_array(path, name, self.ds.pointcloud)
         return self.get_average_xyz_from_point_cloud_array(pc_array, max_xy_list, receptive_grid)
 
     def get_average_xyz_from_point_cloud_array(self, pc_array, max_xy_list, receptive_grid):
@@ -1132,7 +1143,7 @@ class DataMonster:
             msg_list.append(p_msg)
         return tuple(msg_list)
 
-    def publish_point_list(self, point_list, color, idx, ns):
+    def publish_point_list(self, point_list, color, idx, ns, topic):
 
         pl_marker = Marker()
         pl_marker.header.frame_id = "/r2/head/asus_depth_optical_frame"
@@ -1153,10 +1164,11 @@ class DataMonster:
         pl_marker.lifetime = rospy.Duration.from_sec(1200)
         pl_marker.action = Marker.ADD
         pl_marker.points = self.array_to_pose_msg(point_list)
+        if not topic in self.marker_pub:
+            self.marker_pub[topic] = rospy.Publisher(topic, Marker, queue_size=100)
+        self.marker_pub[topic].publish(pl_marker)
 
-        self.marker_pub.publish(pl_marker)
-
-    def publish_sphere_list(self, point_list, color, idx, ns):
+    def publish_sphere_list(self, point_list, color, idx, ns, topic):
 
         pl_marker = Marker()
         pl_marker.header.frame_id = "/r2/head/asus_depth_optical_frame"
@@ -1177,8 +1189,9 @@ class DataMonster:
         pl_marker.lifetime = rospy.Duration.from_sec(1200)
         pl_marker.action = Marker.ADD
         pl_marker.points = self.array_to_pose_msg(point_list)
-
-        self.marker_pub.publish(pl_marker)
+        if not topic in self.marker_pub:
+            self.marker_pub[topic] = rospy.Publisher(topic, Marker, queue_size=100)
+        self.marker_pub[topic].publish(pl_marker)
 
     def append_point_cloud(self, path, name, point_list):
         p = pcl.PointCloud()
@@ -1227,7 +1240,7 @@ class DataMonster:
                 print "[ERROR] No image"
                 return None, None
 
-            img = crop_to_center(img)
+            img = self.input_manager.crop(img)
             img = cv2.resize(img, self.input_dims)
             img_list.append(img)
 
@@ -1237,7 +1250,7 @@ class DataMonster:
                 print "[ERROR] No mask"
                 return None, None
 
-            mask = crop_to_center(mask)
+            mask = self.input_manager.crop(mask)
             mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
             mask_list.append(mask)
 
@@ -1339,7 +1352,7 @@ if __name__ == '__main__':
     data_monster = DataMonster(settings, ds)
     path = settings.ros_dir + '/data/'
     data_monster.set_path(path)
-    mode = 4
+    mode = 1
 
     if tbp:
         data_path = settings.ros_dir + '/data/'
@@ -1360,15 +1373,15 @@ if __name__ == '__main__':
             dist_dic[case].save(settings.ros_dir + '/data/', "[" + case + "]" + name)
     # test
     elif mode == 1:
-        data_monster.show_backprop = True#False#
+        data_monster.show_backprop = False#True#
         distribution = Distribution()
         case1 = '[side_wrap:cylinder]'
         case2 = '[side_wrap:cuboid]'
         # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_all_seg_42_g_bxy_10_(20-10-2)_of_f3'
 
-        distribution.load(data_path, case1 + case2 + name)
+        distribution.load(data_path, case1 + name)
 
-        data_list = [get_data_by_name(path,dl.data_name_list[69])]
+        data_list = [get_data_by_name(path,dl.data_name_list[7])]
         diff_avg_dic, diff_dist_dic, diff_fail = data_monster.test_accuracy(distribution, data_list, tbp)
         print diff_dist_dic
 
@@ -1387,7 +1400,7 @@ if __name__ == '__main__':
     # cross validation
     elif mode == 4:
 
-        retrain = False#True#
+        retrain = True#False#
         data_monster.cross_validation(settings.ros_dir, name, retrain, tbp)
 
     # merge
