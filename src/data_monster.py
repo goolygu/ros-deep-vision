@@ -516,6 +516,10 @@ class DataMonster:
                 count += 1
 
     def show_feature(self, filter_xyz_dict):
+        color_map = {}
+        color_map[1] = (1,1,0)
+        color_map[2] = (0,1,1)
+        color_map[3] = (1,0,1)
 
         for sig in filter_xyz_dict:
             print sig, filter_xyz_dict[sig]
@@ -526,7 +530,7 @@ class DataMonster:
             for sig in filter_xyz_dict:
                 ns = "/" + "/".join([str(c) for c in sig])
 
-                self.publish_point_list([filter_xyz_dict[sig]], (1,0,0), idx, ns, 'feature')
+                self.publish_point_list([filter_xyz_dict[sig]], color_map[len(sig)], idx, ns, 'feature')
                     # idx += 1
             count += 1
 
@@ -569,6 +573,7 @@ class DataMonster:
     #     return max_xyz[0]
 
     def get_filter_xyz(self, layer_data, pc_array, threshold):
+
         resize_ratio = float(self.image_size_orig[0]) / float(layer_data.shape[0])
         if True:
             filter_xy = self.get_filter_avg_xy(layer_data, threshold)
@@ -735,6 +740,94 @@ class DataMonster:
 
         return xyz_dict
 
+    def get_state(self, name, img, mask):
+
+        pc_array = self.get_point_cloud_array(self.path, name, self.ds.pointcloud)
+        xyz_dict = {}
+        self.net_proc_forward_layer(img, mask)
+        conv5_data = copy.deepcopy(self.net.blobs['conv5'].data)
+
+        self.show_depth('depth', self.net.blobs['data'].data, pc_array)
+
+        if self.ds.filters == 'top':
+            filter_idx_5_list = self.get_top_filters(conv5_data[0], self.ds.conv5_top)
+        elif self.ds.filters == 'spread':
+            filter_idx_5_list = self.get_spread_filters(conv5_data[0], self.ds.conv5_top)
+
+        for filter_idx_5 in filter_idx_5_list:
+            print filter_idx_5
+            layer = 'conv5'
+
+            if not self.filter_response_pass_threshold(conv5_data[0,filter_idx_5], self.ds.thres_conv5_test):
+                continue
+
+            self.net_proc_forward_layer(img, mask)
+            if self.ds.xyz_back_prop == 'deconv':
+                self.net_proc_deconv_with_data(filter_idx_5, conv5_data[0], layer)
+            else:
+                self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
+            bp_5 = copy.deepcopy(self.net.blobs['data'].diff)
+            xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
+
+            self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
+
+            # self.net_proc_forward_layer(img, mask)
+            self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
+            conv4_data = copy.deepcopy(self.net.blobs['conv4'].diff)
+
+            if self.ds.filters == 'top':
+                filter_idx_4_list =  self.get_top_filters(conv4_data[0], self.ds.conv4_top)
+            elif self.ds.filters == 'spread':
+                filter_idx_4_list = self.get_spread_filters(conv4_data[0], self.ds.conv4_top)
+
+            for filter_idx_4 in filter_idx_4_list:
+                print filter_idx_5, filter_idx_4
+                layer = 'conv4'
+
+                if not self.filter_response_pass_threshold(conv4_data[0,filter_idx_4], self.ds.thres_conv4_test):
+                    continue
+
+                self.net_proc_forward_layer(img, mask)
+                if self.ds.xyz_back_prop == 'deconv':
+                    self.net_proc_deconv_with_data(filter_idx_4, conv4_data[0], layer)
+                else:
+                    self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
+
+                bp_4 = copy.deepcopy(self.net.blobs['data'].diff)
+                xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
+
+                self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
+
+                # self.net_proc_forward_layer(img, mask)
+                self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
+                conv3_data = copy.deepcopy(self.net.blobs['conv3'].diff)
+
+                if self.ds.filters == 'top':
+                    filter_idx_3_list = self.get_top_filters(conv3_data[0], self.ds.conv3_top)
+                elif self.ds.filters == 'spread':
+                    filter_idx_3_list = self.get_spread_filters(conv3_data[0], self.ds.conv3_top)
+
+                for filter_idx_3 in filter_idx_3_list:
+                    print filter_idx_5, filter_idx_4, filter_idx_3
+                    layer = 'conv3'
+
+                    if not self.filter_response_pass_threshold(conv3_data[0,filter_idx_3], self.ds.thres_conv3_test):
+                        continue
+
+                    self.net_proc_forward_layer(img, mask)
+                    if self.ds.xyz_back_prop == 'deconv':
+                        self.net_proc_deconv_with_data(filter_idx_3, conv3_data[0], layer)
+                    else:
+                        self.net_proc_backward_with_data(filter_idx_3, conv3_data[0], layer)
+
+                    bp_3 = copy.deepcopy(self.net.blobs['data'].diff)
+                    xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_filter_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
+
+                    self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'], max_xy, 0)
+
+        return xyz_dict
+
+
     def show_depth(self, name, layer_data, pc_array):
 
         img = layer_data[0]
@@ -783,7 +876,7 @@ class DataMonster:
         # xy_dot2 = xy_dot2.astype(int)
         # Mode-specific processing
 
-        back_filt_mode = 'norm'#'raw'
+        back_filt_mode = 'raw'#'norm'#
         if back_filt_mode == 'raw':
             grad_img = norm01c(grad_img, 0)
         elif back_filt_mode == 'gray':
@@ -905,7 +998,46 @@ class DataMonster:
 
         return sorted_filter_idx_list
 
+    def get_top_filters(self, layer_response, number):
+        num_filter = layer_response.shape[0]
+        max_list = np.zeros(num_filter)
+        for filter_id in range(num_filter):
+            max_list[filter_id] = np.amax(layer_response[filter_id])
 
+        sorted_filter_idx_list = np.argsort(max_list)[::-1]
+        sorted_filter_idx_list = sorted_filter_idx_list[0:number]
+
+        return sorted_filter_idx_list
+
+    def get_spread_filters(self, layer_response, number):
+
+        response = copy.deepcopy(layer_response)
+        max_list = np.zeros(number).astype(int)
+        layer_height = response.shape[1]
+        layer_width = response.shape[2]
+
+        for i in range(number):
+            max_flat_index = np.argmax(response)
+            # print "max_flat_index", max_flat_index
+            max_index = np.unravel_index(max_flat_index, response.shape)
+
+            filter_id = int(max_index[0])
+            filter_x = max_index[1]
+            filter_y = max_index[2]
+            max_list[i] = filter_id
+
+            # inhibit close filters
+            response[filter_id] *= 0
+            for x in range(-5,6):
+                for y in range(-5,6):
+                    idx_x = x+filter_x
+                    idx_y = y+filter_y
+                    if idx_x < 0 or idx_x >= layer_height or idx_y < 0 or idx_y >= layer_width:
+                        continue
+                    dist_square = float(x**2 + y**2)
+                    response[:,x+filter_x,y+filter_y] *= dist_square/(50.0+dist_square)
+
+        return max_list
 
     # returns a distribution list of shape(num_frames, number of filters, num of data, 3)
     # distribution contains diff of frame xyz to feature xyz
@@ -1066,6 +1198,17 @@ class DataMonster:
             self.net.backward_from_layer(backprop_layer, diffs, zero_higher = True)
         else:
             self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
+
+    def net_proc_deconv_with_data(self, filter_idx, data, backprop_layer):
+
+        diffs = self.net.blobs[backprop_layer].diff * 0
+        if self.ds.backprop_xy == 'sin':
+            x,y = np.unravel_index(np.argmax(data[filter_idx]), data[filter_idx].shape)
+            diffs[0][filter_idx][x][y] = data[filter_idx][x][y]
+        elif self.ds.backprop_xy == 'all':
+            diffs[0][filter_idx] = data[filter_idx]
+        assert self.back_mode in ('grad', 'deconv')
+        self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
 
     def get_orig_xy(self, xy, resize_ratio):
         if np.isnan(xy[0]) or np.isnan(xy[1]):
@@ -1244,6 +1387,7 @@ class DataMonster:
             img = cv2.resize(img, self.input_dims)
             img_list.append(img)
 
+
             mask_name = path + data.name + "_mask.png"
             mask = cv2.imread(mask_name)
             if mask is None:
@@ -1252,6 +1396,7 @@ class DataMonster:
 
             mask = self.input_manager.crop(mask)
             mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
+            mask = cv2.resize(mask, self.input_dims)
             mask_list.append(mask)
 
         return img_list, mask_list

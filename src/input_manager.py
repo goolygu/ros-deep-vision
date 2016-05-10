@@ -1,4 +1,4 @@
-
+import math
 class InputManager:
 
     def __init__(self):
@@ -14,7 +14,12 @@ class InputManager:
         min_y_orig = min_max_box[2]
         max_y_orig = min_max_box[3]
         self.width = max(max_x_orig-min_x_orig, max_y_orig-min_y_orig)
-        self.margin = self.width * margin_ratio
+        self.margin = round(self.width * margin_ratio)
+        if self.width + 2*self.margin > self.frame_x:
+            self.margin = int((self.frame_x - self.width)/2.0)
+        if self.margin < 0:
+            print "[ERROR] marign < 0"
+            return
         min_x = min_x_orig - self.margin
         max_x = min_x_orig + self.width + self.margin
         min_y = min_y_orig - self.margin
