@@ -49,10 +49,19 @@ class Distribution:
         for new_filter in new_filter_list:
             tree[int(new_filter)] = {}
 
+    # save a single feature in string format e.g (1,3,4)
+    def set_tree_feature(self, feature_str):
+        feature = eval(feature_str)
+        parent_filters = feature[0:-1]
+        new_filter = feature[-1]
+        self.set_tree(parent_filters, new_filter)
+
     # save a single filter
     def set_tree(self, parent_filters, new_filter):
         tree = self.filter_tree
         for i, parent in enumerate(parent_filters):
+            if not int(parent) in tree:
+                tree[int(parent)] = {}
             tree = tree[int(parent)]
 
         tree[int(new_filter)] = {}

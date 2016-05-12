@@ -130,7 +130,7 @@ class DataMonster:
 
         # data_list = data_list[0:26]
 
-        img_list, mask_list = self.load_img_mask(data_list, self.path)
+        img_list, mask_list = self.load_img_mask_list(data_list, self.path)
 
         conv5_list = self.load_conv5(img_list, mask_list)
 
@@ -203,7 +203,7 @@ class DataMonster:
     def train_without_tbp(self, data_list):
         distribution = Distribution()
 
-        img_list, mask_list = self.load_img_mask(data_list, self.path)
+        img_list, mask_list = self.load_img_mask_list(data_list, self.path)
 
         conv5_list = self.load_conv5(img_list, mask_list)
         conv4_list, conv3_list = self.load_conv4_conv3(img_list, mask_list)
@@ -355,7 +355,7 @@ class DataMonster:
 
     def test_accuracy(self, distribution, data_list, tbp):
 
-        img_list, mask_list = self.load_img_mask(data_list, self.path)
+        img_list, mask_list = self.load_img_mask_list(data_list, self.path)
 
         diff_sum_dic = {}
         diff_count = {}
@@ -410,7 +410,7 @@ class DataMonster:
     def test(self, distribution):
 
         data_list = [get_data_by_name(self.path,dl.data_name_list[15])]
-        img_list, mask_list = self.load_img_mask(data_list, self.path)
+        img_list, mask_list = self.load_img_mask_list(data_list, self.path)
 
         for idx, data in enumerate(data_list):
             print data.name
@@ -740,25 +740,32 @@ class DataMonster:
 
         return xyz_dict
 
-    def get_state(self, name, img, mask):
+    # dist is expected features
+    def get_state(self, name, dist, img, mask):
 
         pc_array = self.get_point_cloud_array(self.path, name, self.ds.pointcloud)
         xyz_dict = {}
+        value_dict = {}
         self.net_proc_forward_layer(img, mask)
         conv5_data = copy.deepcopy(self.net.blobs['conv5'].data)
 
         self.show_depth('depth', self.net.blobs['data'].data, pc_array)
 
-        if self.ds.filters == 'top':
-            filter_idx_5_list = self.get_top_filters(conv5_data[0], self.ds.conv5_top)
-        elif self.ds.filters == 'spread':
-            filter_idx_5_list = self.get_spread_filters(conv5_data[0], self.ds.conv5_top)
+        if not dist == None:
+            filter_idx_5_list = dist.filter_tree
+        else:
+            if self.ds.filters == 'top':
+                filter_idx_5_list = self.get_top_filters(conv5_data[0], self.ds.conv5_top)
+            elif self.ds.filters == 'spread':
+                filter_idx_5_list = self.get_spread_filters(conv5_data[0], self.ds.conv5_top)
+
 
         for filter_idx_5 in filter_idx_5_list:
             print filter_idx_5
             layer = 'conv5'
 
             if not self.filter_response_pass_threshold(conv5_data[0,filter_idx_5], self.ds.thres_conv5_test):
+                value_dict[(filter_idx_5,)] = 0
                 continue
 
             self.net_proc_forward_layer(img, mask)
@@ -768,6 +775,7 @@ class DataMonster:
                 self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
             bp_5 = copy.deepcopy(self.net.blobs['data'].diff)
             xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
+            value_dict[(filter_idx_5,)] = 1
 
             self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
 
@@ -775,16 +783,20 @@ class DataMonster:
             self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
             conv4_data = copy.deepcopy(self.net.blobs['conv4'].diff)
 
-            if self.ds.filters == 'top':
-                filter_idx_4_list =  self.get_top_filters(conv4_data[0], self.ds.conv4_top)
-            elif self.ds.filters == 'spread':
-                filter_idx_4_list = self.get_spread_filters(conv4_data[0], self.ds.conv4_top)
+            if not dist == None:
+                filter_idx_4_list = dist.filter_tree[filter_idx_5]
+            else:
+                if self.ds.filters == 'top':
+                    filter_idx_4_list =  self.get_top_filters(conv4_data[0], self.ds.conv4_top)
+                elif self.ds.filters == 'spread':
+                    filter_idx_4_list = self.get_spread_filters(conv4_data[0], self.ds.conv4_top)
 
             for filter_idx_4 in filter_idx_4_list:
                 print filter_idx_5, filter_idx_4
                 layer = 'conv4'
 
                 if not self.filter_response_pass_threshold(conv4_data[0,filter_idx_4], self.ds.thres_conv4_test):
+                    value_dict[(filter_idx_5, filter_idx_4)] = 0
                     continue
 
                 self.net_proc_forward_layer(img, mask)
@@ -795,6 +807,7 @@ class DataMonster:
 
                 bp_4 = copy.deepcopy(self.net.blobs['data'].diff)
                 xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
+                value_dict[(filter_idx_5, filter_idx_4)] = 1
 
                 self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
 
@@ -802,16 +815,20 @@ class DataMonster:
                 self.net_proc_backward_with_data(filter_idx_4, conv4_data[0], layer)
                 conv3_data = copy.deepcopy(self.net.blobs['conv3'].diff)
 
-                if self.ds.filters == 'top':
-                    filter_idx_3_list = self.get_top_filters(conv3_data[0], self.ds.conv3_top)
-                elif self.ds.filters == 'spread':
-                    filter_idx_3_list = self.get_spread_filters(conv3_data[0], self.ds.conv3_top)
+                if not dist == None:
+                    filter_idx_3_list = dist.filter_tree[filter_idx_5][filter_idx_4]
+                else:
+                    if self.ds.filters == 'top':
+                        filter_idx_3_list = self.get_top_filters(conv3_data[0], self.ds.conv3_top)
+                    elif self.ds.filters == 'spread':
+                        filter_idx_3_list = self.get_spread_filters(conv3_data[0], self.ds.conv3_top)
 
                 for filter_idx_3 in filter_idx_3_list:
                     print filter_idx_5, filter_idx_4, filter_idx_3
                     layer = 'conv3'
 
                     if not self.filter_response_pass_threshold(conv3_data[0,filter_idx_3], self.ds.thres_conv3_test):
+                        value_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = 0
                         continue
 
                     self.net_proc_forward_layer(img, mask)
@@ -822,10 +839,10 @@ class DataMonster:
 
                     bp_3 = copy.deepcopy(self.net.blobs['data'].diff)
                     xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_filter_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
-
+                    value_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = 1
                     self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'], max_xy, 0)
 
-        return xyz_dict
+        return xyz_dict, value_dict
 
 
     def show_depth(self, name, layer_data, pc_array):
@@ -1369,36 +1386,39 @@ class DataMonster:
 
         return data
 
-    def load_img_mask(self, data_list, path):
+    def load_img_mask(self, data, path):
+
+        img_name = path + data.name + "_rgb.png"
+        img = cv2_read_file_rgb(img_name)
+        if img is None:
+            print "[ERROR] No image"
+            return None, None
+
+        img = self.input_manager.crop(img)
+        img = cv2.resize(img, self.input_dims)
+
+        mask_name = path + data.name + "_mask.png"
+        mask = cv2.imread(mask_name)
+        if mask is None:
+            print "[ERROR] No mask"
+            return None, None
+
+        mask = self.input_manager.crop(mask)
+        mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
+        mask = cv2.resize(mask, self.input_dims)
+
+        return img, mask
+
+    def load_img_mask_list(self, data_list, path):
 
         img_list = []
         mask_list = []
 
         for idx, data in enumerate(data_list):
             # print idx
-
-            img_name = path + data.name + "_rgb.png"
-            img = cv2_read_file_rgb(img_name)
-            if img is None:
-                print "[ERROR] No image"
-                return None, None
-
-            img = self.input_manager.crop(img)
-            img = cv2.resize(img, self.input_dims)
+            img, mask = self.load_img_mask(data, path)
             img_list.append(img)
-
-
-            mask_name = path + data.name + "_mask.png"
-            mask = cv2.imread(mask_name)
-            if mask is None:
-                print "[ERROR] No mask"
-                return None, None
-
-            mask = self.input_manager.crop(mask)
-            mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
-            mask = cv2.resize(mask, self.input_dims)
             mask_list.append(mask)
-
         return img_list, mask_list
 
 

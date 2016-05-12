@@ -51,8 +51,8 @@ class Data:
 
 
 class DataCollector:
-    def __init__(self, path):
-        asus_only = True
+    def __init__(self, path, asus_only):
+
         self.bridge = CvBridge()
 
 
@@ -178,6 +178,6 @@ if __name__ == '__main__':
     rospy.init_node('data_collector', anonymous=False)
     rospack = rospkg.RosPack()
     ros_dir = rospack.get_path('ros_deep_vision')
-    data_collector = DataCollector(ros_dir + "/data/")
+    data_collector = DataCollector(ros_dir + "/data/", True)
 
     rospy.spin()
