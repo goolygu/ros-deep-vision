@@ -52,7 +52,7 @@ class CNNStateManager:
 
         self.data_collector.save_images(save_data.name)
         self.data_collector.save_point_cloud_multi(save_data)
-        return save_data_name
+        return save_data.name
 
     def get_box_list(self, data_name):
         box_min_max_list = []
@@ -84,7 +84,7 @@ class CNNStateManager:
             self.data_monster.set_box(box_min_max, 0.5)
             # load image, point cloud, distribution
             data = Data()
-            data.name = save_data.name
+            data.name = save_data_name
             img, mask = None, None
             while img is None and mask is None:
                 img, mask = self.data_monster.load_img_mask(data, self.path + 'current/')
@@ -92,11 +92,11 @@ class CNNStateManager:
 
             cv2.imshow("img", img)
             cv2.imshow("mask", mask)
-            cv2.imwrite(self.path + 'current/' + save_data.name + "_rgb_crop.png", img[:, :, (2,1,0)])
+            cv2.imwrite(self.path + 'current/' + save_data_name + "_rgb_crop.png", img[:, :, (2,1,0)])
             cv2.waitKey(100)
 
             # generate grasp points
-            if req.state_list[0].name = "None"
+            if req.state_list[0].name == "None":
                 filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, None, img, mask)
             else:
                 expected_dist = self.state_list_to_dist(req.state_list)
@@ -115,7 +115,7 @@ class CNNStateManager:
                 state_list.append(state)
 
                 pose = Pose()
-                if not state_value == 0:
+                if not state.value == 0:
                     pose.position.x = filter_xyz_dict[sig][0]
                     pose.position.y = filter_xyz_dict[sig][1]
                     pose.position.z = filter_xyz_dict[sig][2]
