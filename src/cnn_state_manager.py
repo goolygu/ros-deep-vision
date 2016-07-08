@@ -32,7 +32,7 @@ class CNNStateManager:
         self.data_collector = DataCollector(self.path + 'current/', asus_only)
 
         dist_name = ds.get_name()#'(4-p-3-f)_(3-5-7)_auto_max_all_seg_103_g_bxy_5_(30-5-0.2)_above'
-        self.data_monster.show_backprop = True#False#
+        self.data_monster.show_backprop = False#True#
         # self.distribution = Distribution()
         # case1 = '[side_wrap:cylinder]'
         # case2 = '[side_wrap:cuboid]'
@@ -66,8 +66,9 @@ class CNNStateManager:
         return box_min_max_list
 
     def state_list_to_dist(self, state_list):
-        dist = Distribution
+        dist = Distribution()
         for state in state_list:
+            # print "state", state.name
             dist.set_tree_feature(state.name)
         return dist
 
@@ -100,10 +101,14 @@ class CNNStateManager:
                 filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, None, img, mask)
             else:
                 expected_dist = self.state_list_to_dist(req.state_list)
+                # print "expected_dist", expected_dist.filter_tree
                 filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, expected_dist, img, mask)
 
+
+            print "show feature"
             self.data_monster.show_feature(filter_xyz_dict)
 
+            print "form message"
             resp = GetListStateResponse()
             state_list = []
             pose_list = []
@@ -127,7 +132,7 @@ class CNNStateManager:
 
             resp.state_list = tuple(state_list)
             resp.pose_list = tuple(pose_list)
-
+            print "send msg"
             return resp
 
 

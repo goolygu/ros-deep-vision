@@ -42,6 +42,8 @@ from data_settings import *
 
 from input_manager import *
 
+from visualizer import *
+
 class DataMonster:
 
     def __init__(self, settings, data_settings):
@@ -67,7 +69,10 @@ class DataMonster:
         self.threshold['conv3'] = self.ds.thres_conv3#2
         self.threshold['conv2'] = 0
         self.threshold['conv1'] = 0
-        self.marker_pub = {}
+        self.visualizer = Visualizer()
+        self.visualizer.set_frame("/r2/head/asus_depth_optical_frame")
+        self.visualizer.set_topics(['grasp_distribution', 'feature', "grasp_target"])
+        # self.marker_pub = {}
         # self.marker_pub = rospy.Publisher('visualization_marker', Marker, queue_size=100)
 
 
@@ -445,14 +450,12 @@ class DataMonster:
             color_map["r2/left_palm"] = (0.5,0.5,0)
             color_map["r2/left_thumb_tip"] = (0.5,0.5,0)
             color_map["r2/left_index_tip"] = (0.5,0.5,0)
-        count = 0
 
         if self.visualize:
-            while not rospy.is_shutdown() and count < 5000:
-                for frame in frames_xyz:
-                    ns = name + frame
-                    self.publish_sphere_list([frames_xyz[frame]], color_map[frame], 0, ns, "grasp_target")
-                count += 1
+            for frame in frames_xyz:
+                ns = name + frame
+                self.visualizer.publish_point_array([frames_xyz[frame]], 0, ns, "grasp_target", color_map[frame], Marker.SPHERE_LIST, 1, 0.04 )
+
     def model_distribution(self, dist_cf):
         dist_list = {}
         dist_list["r2/left_palm"] = np.array([]).reshape([0,3])
@@ -505,15 +508,13 @@ class DataMonster:
         color_map["r2/left_thumb_tip"] = (0,1,0)
         color_map["r2/left_index_tip"] = (0,0,1)
 
-        count = 0
-        while not rospy.is_shutdown() and count < 10000:
-            idx = 0
-            for sig in dist_cf:
-                for frame in dist_cf[sig]:
-                    ns = "/" + "/".join([str(c) for c in sig]) + "-" + frame
-                    self.publish_point_list(dist_cf[sig][frame], color_map[frame], idx, ns, 'grasp_distribution')
-                    # idx += 1
-                count += 1
+        idx = 0
+        for sig in dist_cf:
+            for frame in dist_cf[sig]:
+                ns = "/" + "/".join([str(c) for c in sig]) + "-" + frame
+                self.visualizer.publish_point_array(dist_cf[sig][frame], idx, ns, 'grasp_distribution', color_map[frame], Marker.POINTS, 0.4, 0.01 )
+                # idx += 1
+
 
     def show_feature(self, filter_xyz_dict):
         color_map = {}
@@ -524,15 +525,12 @@ class DataMonster:
         for sig in filter_xyz_dict:
             print sig, filter_xyz_dict[sig]
 
-        count = 0
-        while not rospy.is_shutdown() and count < 10000:
-            idx = 0
-            for sig in filter_xyz_dict:
-                ns = "/" + "/".join([str(c) for c in sig])
+        idx = 0
+        for sig in filter_xyz_dict:
+            ns = "/" + "/".join([str(c) for c in sig])
 
-                self.publish_point_list([filter_xyz_dict[sig]], color_map[len(sig)], idx, ns, 'feature')
-                    # idx += 1
-            count += 1
+            self.visualizer.publish_point_array([filter_xyz_dict[sig]], idx, ns, 'feature', color_map[len(sig)], Marker.POINTS, 0.9, 0.01 )
+
 
     def get_distribution_cameraframe(self, dist, filter_xyz_dict):
 
@@ -764,9 +762,13 @@ class DataMonster:
             print filter_idx_5
             layer = 'conv5'
 
-            if not self.filter_response_pass_threshold(conv5_data[0,filter_idx_5], self.ds.thres_conv5_test):
-                value_dict[(filter_idx_5,)] = 0
-                continue
+            response = self.get_max_filter_response(conv5_data[0,filter_idx_5])
+            if response < self.ds.thres_conv5_test:
+                if dist == None:
+                    continue
+                else:
+                    value_dict[(filter_idx_5,)] = 0
+            value_dict[(filter_idx_5,)] = response
 
             self.net_proc_forward_layer(img, mask)
             if self.ds.xyz_back_prop == 'deconv':
@@ -775,7 +777,7 @@ class DataMonster:
                 self.net_proc_backward_with_data(filter_idx_5, conv5_data[0], layer)
             bp_5 = copy.deepcopy(self.net.blobs['data'].diff)
             xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(np.absolute(bp_5[0].mean(axis=0)), pc_array, 0)
-            value_dict[(filter_idx_5,)] = 1
+
 
             self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
 
@@ -795,9 +797,13 @@ class DataMonster:
                 print filter_idx_5, filter_idx_4
                 layer = 'conv4'
 
-                if not self.filter_response_pass_threshold(conv4_data[0,filter_idx_4], self.ds.thres_conv4_test):
-                    value_dict[(filter_idx_5, filter_idx_4)] = 0
-                    continue
+                response = self.get_max_filter_response(conv4_data[0,filter_idx_4])
+                if response < self.ds.thres_conv4_test:
+                    if dist == None:
+                        continue
+                    else:
+                        value_dict[(filter_idx_5, filter_idx_4)] = 0
+                value_dict[(filter_idx_5, filter_idx_4)] = response
 
                 self.net_proc_forward_layer(img, mask)
                 if self.ds.xyz_back_prop == 'deconv':
@@ -807,7 +813,6 @@ class DataMonster:
 
                 bp_4 = copy.deepcopy(self.net.blobs['data'].diff)
                 xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(np.absolute(bp_4[0].mean(axis=0)), pc_array, 0)
-                value_dict[(filter_idx_5, filter_idx_4)] = 1
 
                 self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
 
@@ -827,9 +832,13 @@ class DataMonster:
                     print filter_idx_5, filter_idx_4, filter_idx_3
                     layer = 'conv3'
 
-                    if not self.filter_response_pass_threshold(conv3_data[0,filter_idx_3], self.ds.thres_conv3_test):
-                        value_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = 0
-                        continue
+                    response = self.get_max_filter_response(conv3_data[0,filter_idx_3])
+                    if response < self.ds.thres_conv3_test:
+                        if dist == None:
+                            continue
+                        else:
+                            value_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = 0
+                    value_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = response
 
                     self.net_proc_forward_layer(img, mask)
                     if self.ds.xyz_back_prop == 'deconv':
@@ -839,7 +848,7 @@ class DataMonster:
 
                     bp_3 = copy.deepcopy(self.net.blobs['data'].diff)
                     xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_filter_xyz(np.absolute(bp_3[0].mean(axis=0)), pc_array, 0)
-                    value_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = 1
+
                     self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'], max_xy, 0)
 
         return xyz_dict, value_dict
@@ -989,6 +998,9 @@ class DataMonster:
         max_idx = np.argmax(filter_response, axis=None)
         max_xy = np.unravel_index(max_idx, filter_response.shape)
         return max_xy
+
+    def get_max_filter_response(self, filter_response):
+        return np.nanmax(filter_response)
 
     def filter_response_pass_threshold(self, filter_response, threshold):
         max_v = np.nanmax(filter_response)
@@ -1291,67 +1303,6 @@ class DataMonster:
         except rospy.ServiceException, e:
             print "Service call failed: %s"%e
 
-    def array_to_pose_msg(self, point_list):
-        msg_list = []
-        for point in point_list:
-            if np.isnan(point[0]) or np.isnan(point[1]) or np.isnan(point[2]):
-                continue
-            p_msg = Point()
-            p_msg.x = point[0]
-            p_msg.y = point[1]
-            p_msg.z = point[2]
-            msg_list.append(p_msg)
-        return tuple(msg_list)
-
-    def publish_point_list(self, point_list, color, idx, ns, topic):
-
-        pl_marker = Marker()
-        pl_marker.header.frame_id = "/r2/head/asus_depth_optical_frame"
-        pl_marker.header.stamp = rospy.Time()
-        pl_marker.id = idx
-        pl_marker.ns = ns
-        pl_marker.type = Marker.POINTS
-        # pl_marker.pose.position.x = 1
-        # pl_marker.pose.position.y = 1
-        # pl_marker.pose.position.z = 1
-        pl_marker.scale.x = 0.01
-        pl_marker.scale.y = 0.01
-        pl_marker.scale.z = 0.01
-        pl_marker.color.a = 0.4
-        pl_marker.color.r = color[0]
-        pl_marker.color.g = color[1]
-        pl_marker.color.b = color[2]
-        pl_marker.lifetime = rospy.Duration.from_sec(1200)
-        pl_marker.action = Marker.ADD
-        pl_marker.points = self.array_to_pose_msg(point_list)
-        if not topic in self.marker_pub:
-            self.marker_pub[topic] = rospy.Publisher(topic, Marker, queue_size=100)
-        self.marker_pub[topic].publish(pl_marker)
-
-    def publish_sphere_list(self, point_list, color, idx, ns, topic):
-
-        pl_marker = Marker()
-        pl_marker.header.frame_id = "/r2/head/asus_depth_optical_frame"
-        pl_marker.header.stamp = rospy.Time()
-        pl_marker.id = idx
-        pl_marker.ns = ns
-        pl_marker.type = Marker.SPHERE_LIST
-        # pl_marker.pose.position.x = 1
-        # pl_marker.pose.position.y = 1
-        # pl_marker.pose.position.z = 1
-        pl_marker.scale.x = 0.04
-        pl_marker.scale.y = 0.04
-        pl_marker.scale.z = 0.04
-        pl_marker.color.a = 1
-        pl_marker.color.r = color[0]
-        pl_marker.color.g = color[1]
-        pl_marker.color.b = color[2]
-        pl_marker.lifetime = rospy.Duration.from_sec(1200)
-        pl_marker.action = Marker.ADD
-        pl_marker.points = self.array_to_pose_msg(point_list)
-        if not topic in self.marker_pub:
-            self.marker_pub[topic] = rospy.Publisher(topic, Marker, queue_size=100)
-        self.marker_pub[topic].publish(pl_marker)
 
     def append_point_cloud(self, path, name, point_list):
         p = pcl.PointCloud()

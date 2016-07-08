@@ -64,7 +64,8 @@ class Distribution:
                 tree[int(parent)] = {}
             tree = tree[int(parent)]
 
-        tree[int(new_filter)] = {}
+        if not int(new_filter) in tree:
+            tree[int(new_filter)] = {}
 
     # filter_sig is a list of filter ids from parent to current
     def set(self, filter_sig, frame_name, point_array):
