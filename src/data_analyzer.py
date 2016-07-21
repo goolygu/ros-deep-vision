@@ -8,11 +8,11 @@ if __name__ == '__main__':
     ds = DataSettings(tbp)
     name = ds.get_name() + "_" + ds.get_test_name()
 
-    if tbp:
-        path = settings.ros_dir + '/data/'
-    else:
-        path = settings.ros_dir + '/data_notbp/'
-
+    # if tbp:
+    #     path = settings.ros_dir + '/data/'
+    # else:
+    #     path = settings.ros_dir + '/data_notbp/'
+    path = settings.ros_dir
     f = open(path + "/result/cross_validation_" + name + '.yaml')
     # a dictionary with [case][object][frame]
     result = yaml.load(f)

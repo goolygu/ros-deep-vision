@@ -7,6 +7,30 @@ class InputManager:
         self.min_box = 300
         self.set_box([200,460,180,440], 0)
 
+    def set_width(self, width):
+        self.set_box([200,200+width,180,180+width], 0)
+
+    def set_center(self, center_xy):
+        curr_center = [0,0]
+        curr_center[0] = (self.min_max_box[0] + self.min_max_box[1])/2
+        curr_center[1] = (self.min_max_box[2] + self.min_max_box[3])/2
+        off_set = [0,0]
+        off_set[0] = center_xy[0] - curr_center[0]
+        off_set[1] = center_xy[1] - curr_center[1]
+
+        if self.min_max_box[0] + off_set[0] < 0:
+            off_set[0] = 0 - self.min_max_box[0]
+        if self.min_max_box[1] + off_set[0] >= self.frame_x:
+            off_set[0] = self.frame_x -1 -self.min_max_box[1]
+        if self.min_max_box[2] + off_set[1] < 0:
+            off_set[1] = 0 - self.min_max_box[2]
+        if self.min_max_box[3] + off_set[1] >= self.frame_y:
+            off_set[1] = self.frame_y -1 -self.min_max_box[3]
+
+        self.min_max_box[0] += off_set[0]
+        self.min_max_box[1] += off_set[0]
+        self.min_max_box[2] += off_set[1]
+        self.min_max_box[3] += off_set[1]
 
     def set_box(self, min_max_box, margin_ratio):
         self.min_max_box_orig = min_max_box
@@ -58,13 +82,16 @@ class InputManager:
             min_y = 0
 
         self.min_max_box = [min_x, max_x, min_y, max_y]
-
+        print "min max box", min_max_box
     def crop(self, frame):
         min_x = self.min_max_box[0]
         max_x = self.min_max_box[1]
         min_y = self.min_max_box[2]
         max_y = self.min_max_box[3]
-        return frame[min_x:max_x,min_y:max_y,:]
+        if len(frame.shape) > 2:
+            return frame[min_x:max_x,min_y:max_y,:]
+        else:
+            return frame[min_x:max_x,min_y:max_y]
 
     def get_crop_bias(self):
         min_x = self.min_max_box[0]

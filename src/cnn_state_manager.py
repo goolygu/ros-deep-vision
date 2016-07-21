@@ -88,7 +88,7 @@ class CNNStateManager:
             data.name = save_data_name
             img, mask = None, None
             while img is None and mask is None:
-                img, mask = self.data_monster.load_img_mask(data, self.path + 'current/')
+                img, mask, pc = self.data_monster.load_img_mask_pc(data, self.path + 'current/')
                 time.sleep(0.1)
 
             cv2.imshow("img", img)
@@ -98,11 +98,11 @@ class CNNStateManager:
 
             # generate grasp points
             if req.state_list[0].name == "None":
-                filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, None, img, mask)
+                filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, None, img, mask, pc)
             else:
                 expected_dist = self.state_list_to_dist(req.state_list)
                 # print "expected_dist", expected_dist.filter_tree
-                filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, expected_dist, img, mask)
+                filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, expected_dist, img, mask, pc)
 
 
             print "show feature"

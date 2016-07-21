@@ -87,23 +87,23 @@ class Distribution:
     #
     #     self.data_dict[layer_name][filter_idx][frame_name] = point_array.tolist()
 
-    def save_exact(self, path, name):
+    def save(self, path, name):
         with open(path + name + '.yaml', 'w') as f:
             yaml.dump(self, f, default_flow_style=False)
 
-    def save(self, path, name):
-        with open(path + "/distribution/" + name + '.yaml', 'w') as f:
-            yaml.dump(self, f, default_flow_style=False)
+    # def save(self, path, name):
+    #     with open(path + "/distribution/" + name + '.yaml', 'w') as f:
+    #         yaml.dump(self, f, default_flow_style=False)
         # with open(path + "/distribution/" + name + '.yaml', 'w') as outfile:
         #     outfile.write( yaml.dump(self) )
 
-    def load(self, path, name):
-        f = open(path + "/distribution/" + name + '.yaml')
-        dist = yaml.load(f)
-        self.data_dict = dist.data_dict
-        self.filter_tree = dist.filter_tree
+    # def load(self, path, name):
+    #     f = open(path + "/distribution/" + name + '.yaml')
+    #     dist = yaml.load(f)
+    #     self.data_dict = dist.data_dict
+    #     self.filter_tree = dist.filter_tree
 
-    def load_exact(self, path, name):
+    def load(self, path, name):
         f = open(path + name + '.yaml')
         dist = yaml.load(f)
         self.data_dict = dist.data_dict
@@ -118,9 +118,21 @@ def remove_nan(point_list):
 
 def find_max_density(point_list):
     point_list = remove_nan(point_list)
+    if point_list.shape[0] == 0:
+        return [float('nan'),float('nan'),float('nan')]
     kde = KernelDensity(kernel='gaussian', bandwidth=0.2).fit(point_list)
     points = kde.sample(100000)
     prob_list = kde.score_samples(points)
     max_point = points[np.argmax(prob_list)]
-    print "max", max_point
+    # print "max", max_point
+    return max_point
+
+def find_max_density_point(point_list):
+    point_list = remove_nan(point_list)
+    if point_list.shape[0] == 0:
+        return [float('nan'),float('nan'),float('nan')]
+    kde = KernelDensity(kernel='gaussian', bandwidth=0.001).fit(point_list)
+    prob_list = kde.score_samples(point_list)
+    max_point = point_list[np.argmax(prob_list)]
+    # print "max", max_point
     return max_point

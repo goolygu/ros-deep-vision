@@ -54,7 +54,7 @@ class DataCollector:
     def __init__(self, path, asus_only):
 
         self.bridge = CvBridge()
-
+        self.camera_frame = "/r2/head/asus_depth_optical_frame"
 
         self.lock = threading.Lock()
         self.path = path
@@ -73,7 +73,12 @@ class DataCollector:
         self.mask_sub = rospy.Subscriber("/image_mask",Image, self.mask_callback, queue_size=1)
         self.listener = tf.TransformListener()
 
-        self.frame_list = ["r2/left_palm", "r2/left_index_base", "r2/left_index_yaw", "r2/left_index_proximal", "r2/left_index_medial", "r2/left_index_tip", "r2/left_middle_base", "r2/left_middle_yaw", "r2/left_middle_proximal", "r2/left_middle_medial", "r2/left_middle_tip", "r2/left_little_proximal", "r2/left_little_tip", "r2/left_ring_proximal", "r2/left_ring_tip", "r2/left_thumb_base", "r2/left_thumb_proximal", "r2/left_thumb_medial_prime", "r2/left_thumb_medial", "r2/left_thumb_distal", "r2/left_thumb_tip"]
+        self.frame_list = ["r2/left_palm", "r2/left_index_base", "r2/left_index_yaw", "r2/left_index_proximal", \
+                           "r2/left_index_medial", "r2/left_index_distal", "r2/left_index_tip", "r2/left_middle_base", "r2/left_middle_yaw", \
+                           "r2/left_middle_proximal", "r2/left_middle_medial", "r2/left_middle_distal", "r2/left_middle_tip", "r2/left_little_proximal", \
+                           "r2/left_little_tip", "r2/left_ring_proximal", "r2/left_ring_tip", "r2/left_thumb_base", \
+                           "r2/left_thumb_proximal", "r2/left_thumb_medial_prime", "r2/left_thumb_medial", "r2/left_thumb_distal", \
+                           "r2/left_thumb_tip"]
 
         s = rospy.Service('save_data', SaveData, self.handle_save_data)
 
@@ -83,6 +88,7 @@ class DataCollector:
         try:
             save_point_cloud = rospy.ServiceProxy('save_point_cloud', SaveData)
             resp = save_point_cloud(req)
+            print "point cloud saved"
             return resp.result
         except rospy.ServiceException, e:
             print "Service call failed: %s"%e
@@ -149,13 +155,13 @@ class DataCollector:
     def get_pose_dict(self):
         pose_dict = {}
         for frame in self.frame_list:
-            (trans,rot) = self.get_pose('/r2/head/asus_frame', frame)
+            (trans,rot) = self.get_pose(self.camera_frame, frame)
             pose_dict[frame] = (trans,rot)
         return pose_dict
 
 
     def handle_save_data(self, req):
-
+        print "saving"
         name = req.name
         if req.name == "Time":
             name = strftime("%d-%m-%Y-%H:%M:%S", gmtime())
@@ -178,6 +184,6 @@ if __name__ == '__main__':
     rospy.init_node('data_collector', anonymous=False)
     rospack = rospkg.RosPack()
     ros_dir = rospack.get_path('ros_deep_vision')
-    data_collector = DataCollector(ros_dir + "/data/", True)
+    data_collector = DataCollector(ros_dir + "/train_data/", True)
 
     rospy.spin()
