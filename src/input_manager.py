@@ -1,14 +1,33 @@
 import math
+import cv2
+import pcl
+import numpy as np
+import yaml
+import re
+import os
+from data_collector import Data
+from image_misc import *
+import sys
+
+
 class InputManager:
 
-    def __init__(self):
+    def __init__(self, ds, input_dims):
+        self.ds = ds
+        self.input_dims = input_dims
         self.frame_x = 480
         self.frame_y = 640
         self.min_box = 300
-        self.set_box([200,460,180,440], 0)
+        # self.set_box([200,460,180,440], 0)
+        self.set_width(self.ds.input_width)
+        self.point_cloud_shape = (480,640)
+        self.visualize = False
 
     def set_width(self, width):
         self.set_box([200,200+width,180,180+width], 0)
+
+    def set_visualize(self, vis):
+        self.visualize = vis
 
     def set_center(self, center_xy):
         curr_center = [0,0]
@@ -82,7 +101,8 @@ class InputManager:
             min_y = 0
 
         self.min_max_box = [min_x, max_x, min_y, max_y]
-        print "min max box", min_max_box
+        # print "min max box", min_max_box
+
     def crop(self, frame):
         min_x = self.min_max_box[0]
         max_x = self.min_max_box[1]
@@ -103,3 +123,129 @@ class InputManager:
 
 
         # return (self.width + 2*self.margin, self.width + 2*self.margin)
+
+
+    def get_point_cloud_array(self, path, name, seg):
+        p = pcl.PointCloud()
+        if seg == 'seg':
+            p.from_file(path + name + "_seg.pcd")
+        elif seg == 'noseg':
+            p.from_file(path + name + ".pcd")
+        # print "width", p.width, "height", p.height, "size", p.size
+        a = np.asarray(p)
+        return a
+
+    def load_img_mask_pc(self, data, path):
+
+        mask_name = path + data.name + "_mask.png"
+        mask = cv2.imread(mask_name)
+        if mask is None:
+            print "[ERROR] No mask"
+            return None, None
+        mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
+        if self.ds.dataset == "set2":
+            center = self.get_mask_center(mask)
+            self.set_center(center)
+
+        mask = self.crop(mask)
+        mask = cv2.resize(mask, self.input_dims)
+
+        img_name = path + data.name + "_rgb.png"
+        img = cv2_read_file_rgb(img_name)
+        if img is None:
+            print "[ERROR] No image"
+            return None, None
+
+        img = self.crop(img)
+        img = cv2.resize(img, self.input_dims)
+
+        # load point cloud
+        pc_array = self.get_point_cloud_array(path, data.name, self.ds.pointcloud)
+
+        pc = pc_array.reshape(self.point_cloud_shape + (3,))
+        pc = self.crop(pc)
+
+        if self.visualize:
+            cv2.imshow("img", img)
+            cv2.waitKey(100)
+
+            cv2.imshow("mask", mask)
+            cv2.waitKey(100)
+
+            cv2.imshow("pc", pc)
+            cv2.waitKey(100)
+
+        data.img = img
+        data.mask = mask
+        data.pc = pc
+
+    def get_data_by_name(self, path, name):
+
+        f = open(path+name+"_data.yaml")
+        data = yaml.load(f)
+        self.load_img_mask_pc(data, path)
+        return data
+
+    # returns a dictionary with action type: target type as keys and stores a list of data
+    def get_data_dic(self, path, name_list):
+
+        data_dic = {}
+
+        for data_name in name_list:
+            data = self.get_data_by_name(path, data_name)
+            key = data.action + ":" + data.target_type
+            if key not in data_dic:
+                data_dic[key] = []
+            data_dic[key].append(data)
+            # data_dict[data.name] = data
+        return data_dic
+
+    # returns a dictionary of dictionary with form dic[action:type][object_name]
+    def get_data_name_dic(self, path, name_list):
+
+        data_dic = {}
+        print "loading"
+        for i, data_name in enumerate(name_list):
+            print i,
+            sys.stdout.flush()
+            data = self.get_data_by_name(path, data_name)
+            key = data.action + ":" + data.target_type
+            object = data.name.split('_')[0]
+            if key not in data_dic:
+                data_dic[key] = {}
+            if object not in data_dic[key]:
+                data_dic[key][object] = []
+
+            data_dic[key][object].append(data)
+            # data_dict[data.name] = data
+        print "finished"
+        return data_dic
+
+    # returns a list that contains all data
+    def get_data_all(self, path):
+        data_file_list = []
+        match_flags = re.IGNORECASE
+        for filename in os.listdir(path):
+            if re.match('.*_data\.yaml$', filename, match_flags):
+                data_file_list.append(filename)
+
+        data_file_list = sorted(data_file_list)
+        print data_file_list
+        # data_dict = {}
+        data_list = []
+
+        for data_file in data_file_list:
+            f = open(path+data_file)
+            data = yaml.load(f)
+            data_list.append(data)
+            # data_dict[data.name] = data
+        return data_list
+
+    def get_mask_center(self, mask):
+        xy_grid = np.mgrid[0:mask.shape[0], 0:mask.shape[1]]
+
+        mask_norm = mask / float(np.sum(mask))
+        avg_x = np.sum(xy_grid[0] * mask_norm)
+        avg_y = np.sum(xy_grid[1] * mask_norm)
+
+        return np.around(np.array([avg_x, avg_y])).astype(int)

@@ -11,8 +11,8 @@ class DataSettings:
         else:
             self.tbp_str = 'notbp'
             self.n_conv5_f = 0#3#0#3#5
-            self.n_conv4_f = 16#9#3#9#3
-            self.n_conv3_f = 64#27#3#27#3
+            self.n_conv4_f = 9#9#3#9#3
+            self.n_conv3_f = 27#27#3#27#3
 
         self.back_prop_mode = 'grad' # grad for gradient, deconv
         self.avg_pointcloud_width = 5
@@ -28,9 +28,9 @@ class DataSettings:
         # avg back prop to image and do avg, max does filter level max xyz
         # self.localize_layer = 'img' #'filter' #filter not functional
 
-        self.top_filter = 'max'#'above' #'max'
+        self.top_filter = 'maxlog'#'above' #'max'
 
-        self.dataset = 'set1'
+        self.dataset = 'set3'
 
         self.frame_list_conv3 = ["r2/left_thumb_tip","r2/left_index_tip"]
 
@@ -39,6 +39,8 @@ class DataSettings:
         self.frame_list_conv5 = [] # not implemented yet
 
         self.input_width = 260
+
+        self.img_src_loc ="relu" #"absolute"
 
         ###### Testing related
 
@@ -50,8 +52,8 @@ class DataSettings:
             self.conv3_top = 3#27#3
         else:
             self.conv5_top = 0#3#0#3#3
-            self.conv4_top = 16#3#9#3
-            self.conv3_top = 64#3#27#3
+            self.conv4_top = 9#3#9#3
+            self.conv3_top = 27#3#27#3
 
         self.thres_conv5_test = 0# 15#20
         self.thres_conv4_test = 0#2#5# 3#2
@@ -61,7 +63,7 @@ class DataSettings:
         self.mask = 'mask'
         self.evaluate = 'case' # 'full' #
         # how is the grasp point determined from a distribution
-        self.dist_to_grasp_point = "densepoint" #"density" #"mean" # #
+        self.dist_to_grasp_point = "densepoint" #"mean" #"filterweightmean"#"weightmean" #"densepoint" #"density" # #
 
         self.filter_low_n = -1
 
@@ -70,7 +72,7 @@ class DataSettings:
                 str(self.n_conv5_f) + '-' + str(self.n_conv4_f) + '-' + str(self.n_conv3_f) + ')_' + \
                 self.backprop_xy + '_' + self.dataset + '_' + self.back_prop_mode + '_' + \
                 str(self.avg_pointcloud_width) + '_(' + str(self.thres_conv5) + '-' + str(self.thres_conv4) + '-' + str(self.thres_conv3) + ')_' + \
-                self.top_filter + '_' + self.location_layer #+ "_" + str(self.input_width)
+                self.top_filter + '_' + self.location_layer + "_" + str(self.input_width) + "_" + self.img_src_loc
 
         return name
 

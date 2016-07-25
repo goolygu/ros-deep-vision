@@ -27,7 +27,7 @@ class CNNStateManager:
         else:
             self.data_path = settings.ros_dir + '/data_notbp/'
 
-        self.data_monster.set_path(self.path + 'current/')
+        self.data_monster.set_train_path(self.path + 'current/')
         asus_only = False
         self.data_collector = DataCollector(self.path + 'current/', asus_only)
 
@@ -86,23 +86,23 @@ class CNNStateManager:
             # load image, point cloud, distribution
             data = Data()
             data.name = save_data_name
-            img, mask = None, None
-            while img is None and mask is None:
-                img, mask, pc = self.data_monster.load_img_mask_pc(data, self.path + 'current/')
+            data.img, data.mask, data.pc = None, None ,None
+            while data.img is None and data.mask is None and data.pc is None:
+                self.data_monster.input_manager.load_img_mask_pc(data, self.path + 'current/')
                 time.sleep(0.1)
 
-            cv2.imshow("img", img)
-            cv2.imshow("mask", mask)
-            cv2.imwrite(self.path + 'current/' + save_data_name + "_rgb_crop.png", img[:, :, (2,1,0)])
+            cv2.imshow("img", data.img)
+            cv2.imshow("mask", data.mask)
+            cv2.imwrite(self.path + 'current/' + save_data_name + "_rgb_crop.png", data.img[:, :, (2,1,0)])
             cv2.waitKey(100)
 
             # generate grasp points
             if req.state_list[0].name == "None":
-                filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, None, img, mask, pc)
+                filter_xyz_dict, value_dict = self.data_monster.get_state(None, data)
             else:
                 expected_dist = self.state_list_to_dist(req.state_list)
                 # print "expected_dist", expected_dist.filter_tree
-                filter_xyz_dict, value_dict = self.data_monster.get_state(data.name, expected_dist, img, mask, pc)
+                filter_xyz_dict, value_dict = self.data_monster.get_state(expected_dist, data)
 
 
             print "show feature"
