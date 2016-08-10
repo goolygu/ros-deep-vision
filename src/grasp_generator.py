@@ -10,36 +10,39 @@ from geometry_msgs.msg import Point
 from data_util import *
 from data_settings import *
 import time
+import cv2
 
 class GraspGenerator:
     def __init__(self, settings):
         rospy.init_node('grasp_generator', anonymous=True)
-        self.tbp = True#False#
-        ds = DataSettings(self.tbp)
+        ds = DataSettings()
+        self.tbp = ds.tbp
+
         self.data_monster = DataMonster(settings, ds)
         self.data_monster.visualize = True
-        self.path = settings.ros_dir + '/data/'
-        if self.tbp:
-            self.data_path = settings.ros_dir + '/data/'
-        else:
-            self.data_path = settings.ros_dir + '/data_notbp/'
+        self.dist_path = settings.ros_dir + '/distribution/'
+        self.current_path = settings.ros_dir + '/current/'
 
-        self.data_monster.set_path(self.path + 'current/')
-        asus_only = False
-        self.data_collector = DataCollector(self.path + 'current/',asus_only)
+        # self.data_monster.set_train_path()
+        asus_only = True
+        self.data_collector = DataCollector(self.current_path, asus_only)
 
         dist_name = ds.get_name()#'(4-p-3-f)_(3-5-7)_auto_max_all_seg_103_g_bxy_5_(30-5-0.2)_above'
         self.data_monster.show_backprop = True#False#
+        self.data_monster.input_manager.set_visualize(True)
         self.distribution = Distribution()
         case1 = '[side_wrap:cylinder]'
         case2 = '[side_wrap:cuboid]'
-        self.distribution.load(self.data_path, case1 + dist_name)
-
-        s = rospy.Service('get_grasp_points', GetGraspPoints, self.handle_get_grasp_points_multi)
+        self.distribution.load(self.dist_path + "cross_validation/", case2 + '[leave_tazobox]' + dist_name)
+        # self.distribution.load(self.dist_path + "cross_validation/", case1 + '[leave_cjar]' + dist_name)
+        if ds.filter_low_n > 0:
+            self.distribution = self.data_monster.filter_distribution(self.distribution, ds.filter_low_n)
+            # self.distribution = self.data_monster.filter_distribution_same_parent(self.distribution, ds.filter_low_n)
+        s = rospy.Service('get_grasp_points', GetGraspPoints, self.handle_get_grasp_points)#_multi)
 
     def handle_get_grasp_points(self,req):
         print "received grasp request"
-
+        cv2.destroyAllWindows()
         # TODO call data_collector service instead, run in seperate thread to save time
         # first save image and point cloud
         time_str = strftime("%d-%m-%Y-%H:%M:%S", time.gmtime())
@@ -57,22 +60,22 @@ class GraspGenerator:
         # load image, point cloud, distribution
         data = Data()
         data.name = save_data.name
-        img_list, mask_list = None, None
-        while img_list is None and mask_list is None:
-            img_list, mask_list = self.data_monster.load_img_mask([data], self.path + 'current/')
+        data.img, data.mask = None, None
+        while data.img is None and data.mask is None:
+            self.data_monster.input_manager.load_img_mask_pc(data, self.current_path)
             time.sleep(0.1)
 
         # generate grasp points
 
         if self.tbp:
-            filter_xyz_dict = self.data_monster.get_all_filter_xyz(data, self.distribution, img_list[0], mask_list[0])
+            filter_xyz_dict, filter_resp_dict = self.data_monster.get_all_filter_xyz(data, self.distribution)
         else:
-            filter_xyz_dict = self.data_monster.get_all_filter_xyz_notbp(data, self.distribution, img_list[0], mask_list[0])
+            filter_xyz_dict, filter_resp_dict = self.data_monster.get_all_filter_xyz_notbp(data, self.distribution)
         # filter_xyz_dict = self.data_monster.get_all_filter_xyz(data, self.distribution, img_list[0], mask_list[0])
 
         distribution_cf = self.data_monster.get_distribution_cameraframe(self.distribution, filter_xyz_dict)
         self.data_monster.show_point_cloud(data.name)
-        avg_dic = self.data_monster.model_distribution(distribution_cf)
+        avg_dic = self.data_monster.model_distribution(distribution_cf, filter_resp_dict)
 
         self.data_monster.show_distribution(distribution_cf)
 
@@ -113,7 +116,7 @@ class GraspGenerator:
 
         box_min_max_list = []
 
-        box_f = open(self.path + 'current/' + save_data.name + "_box.txt", "r")
+        box_f = open(self.current_path + save_data.name + "_box.txt", "r")
         for box_str in box_f:
             box_min_max = box_str.rstrip('\n').split(",")
             box_min_max = [int(num) for num in box_min_max]
@@ -126,26 +129,26 @@ class GraspGenerator:
             # load image, point cloud, distribution
             data = Data()
             data.name = save_data.name
-            img_list, mask_list = None, None
-            while img_list is None and mask_list is None:
-                img_list, mask_list = self.data_monster.load_img_mask([data], self.path + 'current/')
+            data.img, data.mask = None, None
+            while data.img is None and data.mask is None:
+                self.data_monster.input_manager.load_img_mask_pc(data, self.current_path)
                 time.sleep(0.1)
 
-            cv2.imshow("img", img_list[0])
+            cv2.imshow("img", data.img)
             cv2.waitKey(100)
 
             # generate grasp points
 
             if self.tbp:
-                filter_xyz_dict = self.data_monster.get_all_filter_xyz(data, self.distribution, img_list[0], mask_list[0])
+                filter_xyz_dict, filter_resp_dict = self.data_monster.get_all_filter_xyz(data, self.distribution)
             else:
-                filter_xyz_dict = self.data_monster.get_all_filter_xyz_notbp(data, self.distribution, img_list[0], mask_list[0])
+                filter_xyz_dict, filter_resp_dict = self.data_monster.get_all_filter_xyz_notbp(data, self.distribution)
             # filter_xyz_dict = self.data_monster.get_all_filter_xyz(data, self.distribution, img_list[0], mask_list[0])
             self.data_monster.show_feature(filter_xyz_dict)
 
             distribution_cf = self.data_monster.get_distribution_cameraframe(self.distribution, filter_xyz_dict)
             self.data_monster.show_point_cloud(data.name)
-            avg_dic = self.data_monster.model_distribution(distribution_cf)
+            avg_dic = self.data_monster.model_distribution(distribution_cf, filter_resp_dict)
 
             self.data_monster.show_distribution(distribution_cf)
 
@@ -168,5 +171,6 @@ class GraspGenerator:
 
 if __name__ == '__main__':
     grasp_generator = GraspGenerator(settings)
-    rospy.spin()
+
     # grasp_generator.handle_get_grasp_points(None)
+    rospy.spin()

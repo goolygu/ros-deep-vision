@@ -143,7 +143,7 @@ class InputManager:
             print "[ERROR] No mask"
             return None, None
         mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
-        if self.ds.dataset == "set2":
+        if not self.ds.dataset == "set1":
             center = self.get_mask_center(mask)
             self.set_center(center)
 
@@ -191,7 +191,9 @@ class InputManager:
 
         data_dic = {}
 
-        for data_name in name_list:
+        for i, data_name in enumerate(name_list):
+            print i,
+            sys.stdout.flush()
             data = self.get_data_by_name(path, data_name)
             key = data.action + ":" + data.target_type
             if key not in data_dic:
@@ -202,6 +204,8 @@ class InputManager:
 
     # returns a dictionary of dictionary with form dic[action:type][object_name]
     def get_data_name_dic(self, path, name_list):
+        if name_list == None:
+            name_list = self.get_data_name_all(path)
 
         data_dic = {}
         print "loading"
@@ -222,7 +226,8 @@ class InputManager:
         return data_dic
 
     # returns a list that contains all data
-    def get_data_all(self, path):
+    def get_data_all(self, path, idx_list=None):
+        print "loading"
         data_file_list = []
         match_flags = re.IGNORECASE
         for filename in os.listdir(path):
@@ -230,16 +235,37 @@ class InputManager:
                 data_file_list.append(filename)
 
         data_file_list = sorted(data_file_list)
-        print data_file_list
-        # data_dict = {}
+        if idx_list != None:
+            data_file_list = [ data_file_list[index] for index in idx_list]
+        # print data_file_list
         data_list = []
+        for i, data_file in enumerate(data_file_list):
+            print i,
+            sys.stdout.flush()
+            f = open(path+data_file)
+            data = yaml.load(f)
+            self.load_img_mask_pc(data, path)
+            data_list.append(data)
 
+        return data_list
+
+    def get_data_name_all(self, path):
+        data_file_list = []
+        match_flags = re.IGNORECASE
+        for filename in os.listdir(path):
+            if re.match('.*_data\.yaml$', filename, match_flags):
+                data_file_list.append(filename)
+
+        data_file_list = sorted(data_file_list)
+        # print data_file_list
+        # data_dict = {}
+        name_list = []
         for data_file in data_file_list:
             f = open(path+data_file)
             data = yaml.load(f)
-            data_list.append(data)
+            name_list.append(data.name)
             # data_dict[data.name] = data
-        return data_list
+        return name_list
 
     def get_mask_center(self, mask):
         xy_grid = np.mgrid[0:mask.shape[0], 0:mask.shape[1]]

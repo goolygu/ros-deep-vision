@@ -8,6 +8,10 @@ import time
 import yaml
 from sklearn.neighbors.kde import KernelDensity
 import tf
+from gaussian_kde import gaussian_kde
+from scipy import stats
+import scipy
+from scipy.special import expit
 
 class Distribution:
     def __init__(self):
@@ -48,6 +52,11 @@ class Distribution:
             tree = tree[int(parent)]
         for new_filter in new_filter_list:
             tree[int(new_filter)] = {}
+
+    def set_tree_sig(self, sig):
+        parent_filters = sig[0:-1]
+        new_filter = sig[-1]
+        self.set_tree(parent_filters, new_filter)
 
     # save a single feature in string format e.g (1,3,4)
     def set_tree_feature(self, feature_str):
@@ -111,13 +120,16 @@ class Distribution:
 
 def remove_nan(point_list):
     new_list = np.array([]).reshape([0,3])
-    for point in point_list:
+    idx_list = np.array([])
+    for i, point in enumerate(point_list):
         if not np.any(np.isnan(point)):
             new_list = np.append(new_list, [point], axis=0)
-    return new_list
+            idx_list = np.append(idx_list, [i], axis=0)
+    return new_list, idx_list.astype(int)
+
 
 def find_max_density(point_list):
-    point_list = remove_nan(point_list)
+    point_list, _ = remove_nan(point_list)
     if point_list.shape[0] == 0:
         return [float('nan'),float('nan'),float('nan')]
     kde = KernelDensity(kernel='gaussian', bandwidth=0.2).fit(point_list)
@@ -128,11 +140,29 @@ def find_max_density(point_list):
     return max_point
 
 def find_max_density_point(point_list):
-    point_list = remove_nan(point_list)
+    point_list, _ = remove_nan(point_list)
     if point_list.shape[0] == 0:
         return [float('nan'),float('nan'),float('nan')]
-    kde = KernelDensity(kernel='gaussian', bandwidth=0.001).fit(point_list)
+    kde = KernelDensity(kernel='gaussian', bandwidth=0.01).fit(point_list)
     prob_list = kde.score_samples(point_list)
+    max_point = point_list[np.argmax(prob_list)]
+    # print "max", max_point
+    return max_point
+
+def find_weighted_max_density_point(point_list, weight_list):
+    point_list, idx_list = remove_nan(point_list)
+    point_list_t = np.swapaxes(point_list, 0,1)
+    weight_list = weight_list[idx_list]
+    # weight_list = np.log(10*weight_list+1)
+    weight_list = scipy.special.expit(weight_list)
+    # weight_list = np.swapaxes(np.tile(weight_list, (3,1)),0,1)
+    if point_list.shape[1] == 0:
+        return [float('nan'),float('nan'),float('nan')]
+    pdf = gaussian_kde(point_list_t, bw_method=1, weights=weight_list)
+    # pdf = stats.gaussian_kde(point_list_t, bw_method=1)
+    prob_list = pdf(point_list_t)
+    assert(len(prob_list) == len(point_list))
+    # print "prob_list", prob_list
     max_point = point_list[np.argmax(prob_list)]
     # print "max", max_point
     return max_point
