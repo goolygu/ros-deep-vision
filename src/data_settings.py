@@ -44,6 +44,10 @@ class DataSettings:
 
         self.img_src_loc = "relu" #"absolute"#
 
+        ###### state only not saved
+        self.filters = 'spread'
+        self.cnn_pose_state = 'reldist' #'xyz'
+
         ###### Testing related
 
 
@@ -76,7 +80,7 @@ class DataSettings:
         self.tbp_test = True
 
 
-        case = 1
+        case = 20
         # over write 3 cases for comparison
         if case == 1 or case == 5:
             self.tbp = True
@@ -96,6 +100,9 @@ class DataSettings:
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = True
             self.filter_low_n = 15
+            if case == 5:
+                self.tbp_test = False
+                self.tbp_test_str = '_notbptest'
 
         elif case == 2:
             self.tbp = True
@@ -151,9 +158,12 @@ class DataSettings:
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = False
             self.filter_low_n = 15
-        if case == 5:
-            self.tbp_test = False
-            self.tbp_test_str = '_notbptest'
+        elif case == 20:
+            self.conv5_top = 10
+            self.conv4_top = 2
+            self.conv3_top = 0
+            self.conv2_top = 0
+
 
         if self.filter_same_parent:
             self.filter_same_parent_str = "_sameparent"
@@ -166,6 +176,11 @@ class DataSettings:
                 self.backprop_xy + '_' + self.dataset + '_' + self.back_prop_mode + '_' + \
                 str(self.avg_pointcloud_width) + '_(' + str(self.thres_conv5) + '-' + str(self.thres_conv4) + '-' + str(self.thres_conv3) + '-' + str(self.thres_conv2) + ')_' + \
                 self.top_filter + '_' + self.location_layer + "_" + str(self.input_width) + "_" + self.img_src_loc
+
+        return name
+
+    def get_pose_state_name(self):
+        name = '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + '-' + str(self.conv2_top) + ')_' + "_" + self.filters + "_" + self.cnn_pose_state
 
         return name
 

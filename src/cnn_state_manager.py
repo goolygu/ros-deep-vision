@@ -9,7 +9,7 @@ from perception_msgs.srv import GetGraspPoints, SaveData, GetListState
 from perception_msgs.msg import State
 from geometry_msgs.msg import Point, Pose
 from data_util import *
-from data_settings_atg import *
+from data_settings import *
 from distribution import *
 import time
 
@@ -17,15 +17,12 @@ import time
 class CNNStateManager:
     def __init__(self, settings):
         rospy.init_node('cnn_state_manager', anonymous=True)
-        self.tbp = True#False#
-        ds = DataSettings(self.tbp)
+        ds = DataSettings()
+        self.tbp = ds.tbp
+
         self.data_monster = DataMonster(settings, ds)
         self.data_monster.visualize = True
-        self.path = settings.ros_dir + '/data/'
-        if self.tbp:
-            self.data_path = settings.ros_dir + '/data/'
-        else:
-            self.data_path = settings.ros_dir + '/data_notbp/'
+        self.path = settings.ros_dir
 
         self.data_monster.set_train_path(self.path + 'current/')
         asus_only = False
@@ -65,12 +62,7 @@ class CNNStateManager:
             print box_min_max
         return box_min_max_list
 
-    def state_list_to_dist(self, state_list):
-        dist = Distribution()
-        for state in state_list:
-            # print "state", state.name
-            dist.set_tree_feature(state.name)
-        return dist
+
 
 
     def handle_get_cnn_list_state(self,req):
@@ -100,7 +92,7 @@ class CNNStateManager:
             if req.state_list[0].name == "None":
                 filter_xyz_dict, value_dict = self.data_monster.get_state(None, data)
             else:
-                expected_dist = self.state_list_to_dist(req.state_list)
+                expected_dist = state_list_to_dist(req.state_list)
                 # print "expected_dist", expected_dist.filter_tree
                 filter_xyz_dict, value_dict = self.data_monster.get_state(expected_dist, data)
 
@@ -110,26 +102,8 @@ class CNNStateManager:
 
             print "form message"
             resp = GetListStateResponse()
-            state_list = []
-            pose_list = []
-            for sig in value_dict:
-                state = State()
-                state.type = 'cnn'
-                state.name = str(sig)
-                state.value = value_dict[sig]
-                state_list.append(state)
 
-                pose = Pose()
-                if not state.value == 0:
-                    pose.position.x = filter_xyz_dict[sig][0]
-                    pose.position.y = filter_xyz_dict[sig][1]
-                    pose.position.z = filter_xyz_dict[sig][2]
-                    pose.orientation.x = 0
-                    pose.orientation.y = 0
-                    pose.orientation.z = 0
-                    pose.orientation.w = 1
-                pose_list.append(pose)
-
+            state_list, pose_list = to_state_pose_list(value_dict, filter_xyz_dict)
             resp.state_list = tuple(state_list)
             resp.pose_list = tuple(pose_list)
             print "send msg"

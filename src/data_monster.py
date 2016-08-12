@@ -685,7 +685,7 @@ class DataMonster:
             filter_xy = self.get_filter_max_xy(layer_data, threshold)
         orig_xy = self.get_orig_xy(filter_xy, resize_ratio)
         filter_xyz = self.get_average_xyz_from_point_cloud(pc, [orig_xy], self.average_grid)
-        return filter_xyz[0], filter_xy
+        return filter_xyz[0].tolist(), filter_xy
 
     # def get_filter_xyz(self, layer_data, pc_array, threshold):
     #     image_size_orig = self.input_manager.get_after_crop_size()
@@ -944,9 +944,9 @@ class DataMonster:
                     filter_idx_3_list = dist.filter_tree[filter_idx_5][filter_idx_4]
                 else:
                     if self.ds.filters == 'top':
-                        filter_idx_3_list = self.get_top_filters(conv3_data[0], self.ds.conv3_top)
+                        filter_idx_3_list = self.get_top_filters(conv3_data, self.ds.conv3_top)
                     elif self.ds.filters == 'spread':
-                        filter_idx_3_list = self.get_spread_filters(conv3_data[0], self.ds.conv3_top)
+                        filter_idx_3_list = self.get_spread_filters(conv3_data, self.ds.conv3_top)
 
                 for filter_idx_3 in filter_idx_3_list:
                     print filter_idx_5, filter_idx_4, filter_idx_3
@@ -1116,7 +1116,7 @@ class DataMonster:
         return max_xy
 
     def get_max_filter_response(self, filter_response):
-        return np.nanmax(filter_response)
+        return np.nanmax(filter_response).item()
 
     def filter_response_pass_threshold(self, filter_response, threshold):
         max_v = np.nanmax(filter_response)
@@ -1141,7 +1141,7 @@ class DataMonster:
         for idx in sorted_idx_list:
             sorted_filter_idx_list.append(filter_list[idx])
 
-        return sorted_filter_idx_list
+        return sorted_filter_idx_list.tolist()
 
     def get_top_filters(self, layer_response, number):
         num_filter = layer_response.shape[0]
@@ -1152,7 +1152,7 @@ class DataMonster:
         sorted_filter_idx_list = np.argsort(max_list)[::-1]
         sorted_filter_idx_list = sorted_filter_idx_list[0:number]
 
-        return sorted_filter_idx_list
+        return sorted_filter_idx_list.tolist()
 
     def get_spread_filters(self, layer_response, number):
 
@@ -1182,7 +1182,7 @@ class DataMonster:
                     dist_square = float(x**2 + y**2)
                     response[:,x+filter_x,y+filter_y] *= dist_square/(50.0+dist_square)
 
-        return max_list
+        return max_list.tolist()
 
     def get_relative_pos(self, filter_idx, data_list, conv_list, img_src, frame_list, threshold):
 
@@ -1362,7 +1362,17 @@ class DataMonster:
 
             # this step flattens to 2 arrays of x coordinates and y coordinates
             xy_receptive_list =np.reshape(grid, [2,-1])
-            idx_receptive_list = np.ravel_multi_index(xy_receptive_list.astype(int),pc.shape[0:2])
+
+            # remove out of bound index
+            xy_receptive_list_filtered  = np.array([]).reshape([2,0])
+
+            for i in range(xy_receptive_list.shape[1]):
+                x = xy_receptive_list[0,i]
+                y = xy_receptive_list[1,i]
+                if x < pc.shape[0] and x >= 0 and y < pc.shape[1] and y >= 0:
+                    xy_receptive_list_filtered = np.append(xy_receptive_list_filtered, xy_receptive_list[:,i].reshape([2,1]), axis=1)
+
+            idx_receptive_list = np.ravel_multi_index(xy_receptive_list_filtered.astype(int),pc.shape[0:2])
             avg = np.nanmean(pc_array[idx_receptive_list],axis=0)
             if np.isnan(avg[0]) or np.isnan(avg[1]) or np.isnan(avg[2]):
                 print "nan found", xy
