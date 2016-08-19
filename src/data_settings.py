@@ -45,9 +45,9 @@ class DataSettings:
         self.img_src_loc = "relu" #"absolute"#
 
         ###### state only not saved
-        self.filters = 'spread'
-        self.cnn_pose_state = 'reldist' #'xyz'
-
+        self.filters = 'top'#'spread'#
+        self.cnn_pose_state = 'xyz'#'reldist' #
+        self.square = 'dec'#'inc'#
         ###### Testing related
 
 
@@ -159,7 +159,7 @@ class DataSettings:
             self.filter_same_parent = False
             self.filter_low_n = 15
         elif case == 20:
-            self.conv5_top = 10
+            self.conv5_top = 30
             self.conv4_top = 2
             self.conv3_top = 0
             self.conv2_top = 0
@@ -180,7 +180,8 @@ class DataSettings:
         return name
 
     def get_pose_state_name(self):
-        name = '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + '-' + str(self.conv2_top) + ')_' + "_" + self.filters + "_" + self.cnn_pose_state
+        name = '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + '-' + str(self.conv2_top) + ')_' + "_" + self.filters + "_" + self.cnn_pose_state \
+                # + "_" + self.square
 
         return name
 

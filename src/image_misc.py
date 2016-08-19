@@ -93,6 +93,21 @@ def crop_to_square(frame):
         offset = (i_size - j_size) / 2
         return frame[offset:offset+j_size,:,:]
 
+def increase_to_square(frame, fill):
+
+    i_size,j_size = frame.shape[0],frame.shape[1]
+    if j_size > i_size:
+        offset = (j_size - i_size) / 2
+        new_frame = np.ones([j_size,j_size,frame.shape[2]]) * fill
+        new_frame[offset:offset+i_size,:,:] = frame
+        return new_frame
+    else:
+        offset = (i_size - j_size) / 2
+        new_frame = np.ones([i_size,i_size,frame.shape[2]]) * fill
+        new_frame[:,offset:offset+j_size,:] = frame
+        return new_frame
+
+
 def cv2_imshow_rgb(window_name, img):
     # Convert native OpenCV BGR -> RGB before displaying
     cv2.imshow(window_name, img[:,:,::-1])

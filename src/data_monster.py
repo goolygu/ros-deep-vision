@@ -73,10 +73,11 @@ class DataMonster:
         self.visualizer.set_frame("/r2/head/asus_depth_optical_frame")
         self.visualizer.set_topics(['grasp_distribution', 'feature', "grasp_target"])
 
-
+        GPU_ID = 0
         if settings.caffevis_mode_gpu:
             caffe.set_mode_gpu()
             print 'CaffeVisApp mode: GPU'
+            caffe.set_device(GPU_ID)
         else:
             caffe.set_mode_cpu()
             print 'CaffeVisApp mode: CPU'

@@ -27,21 +27,30 @@ class CNNState:
     def merge(self, other_state):
         self.xyz_dict.update(other_state.xyz_dict)
         self.response_dict.update(other_state.response_dict)
+class Result:
 
+    def __init__(self):
+        pass
+    def save(self, path, name):
+        with open(path + name + '.yaml', 'w') as f:
+            yaml.dump(self, f, default_flow_style=False)
 
 class PoseTest:
 
-    def __init__(self, data_path, state_path, ds):
+    def __init__(self, data_path, state_path, ds, case):
 
+        self.mode = "nomerge"#"merge"#
 
-        self.data_monster = DataMonster(settings, ds)
-        self.data_monster.visualize = True
-        self.data_monster.show_backprop = False
+        if case == 2 or self.mode == 'merge':
+            self.data_monster = DataMonster(settings, ds)
+            self.data_monster.visualize = True
+            self.data_monster.show_backprop = False
         self.input_dims = (227,227)
         self.pose_state_manager = PoseStateManager(ds)
         self.data_path = data_path
         self.state_path = state_path
-
+        self.dilate_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
+        self.ds = ds
     def load_cnn_state(self, name):
         try:
             f = open(self.state_path + name + '.yaml')
@@ -69,6 +78,10 @@ class PoseTest:
 
         depth_name = file_prefix + "_depthcrop.png"
         depth = cv2.imread(depth_name, -1).astype("float")
+
+        if self.ds.square == 'inc':
+            depth[depth == 0] = np.nan
+
         # print depth
         top_left_name = file_prefix + "_loc.txt"
         f = open(top_left_name, 'r')
@@ -96,17 +109,28 @@ class PoseTest:
         print file_prefix
         img_name = file_prefix + "_crop.png"
         img = cv2_read_file_rgb(img_name)
-        img = crop_to_square(img)
+        if self.ds.square == 'dec':
+            img = crop_to_square(img)
+        else:
+            img = increase_to_square(img,0.)
         img = cv2.resize(img, self.input_dims)
 
         mask_name = file_prefix + "_maskcrop.png"
         mask = cv2.imread(mask_name)
-        mask = crop_to_square(mask)
+        if self.ds.square == 'dec':
+            mask = crop_to_square(mask)
+        else:
+            mask = increase_to_square(mask,0.)
         mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
+        if self.ds.square == 'inc':
+            mask = cv2.dilate(mask, self.dilate_kernel)
         mask = cv2.resize(mask, self.input_dims)
 
         pc = self.get_crop_pointcloud(file_prefix)
-        pc = crop_to_square(pc)
+        if self.ds.square == 'dec':
+            pc = crop_to_square(pc)
+        else:
+            pc = increase_to_square(pc,np.nan)
 
         pose_name = file_prefix + "_pose.txt"
         f = open(pose_name, 'r')
@@ -122,7 +146,8 @@ class PoseTest:
 
     def build_states(self):
 
-        for cat_name in os.listdir(self.data_path):#["camera"]:#["apple"]:#
+        cat_list = os.listdir(self.data_path)[42:45]
+        for cat_name in cat_list:#["food_bag"]:#os.listdir(self.data_path):#["camera"]:#["apple"]:#
             for ins_name in os.listdir(self.data_path+cat_name):#["camera_3"]:#["apple_1"]:#
                 ins_num = re.match(cat_name + "_" + "(.*)", ins_name).group(1)
                 for file_name in os.listdir(self.data_path+cat_name+"/"+ins_name):
@@ -203,7 +228,7 @@ class PoseTest:
         train_dic = {}
 
         # build up list of file names for training
-        for cat_name in ["food_bag"]:#["calculator","camera","food_bag","lightbulb","notebook","soda_can"]:#os.listdir(path):#["camera"]:#["apple"]:#
+        for cat_name in ["food_bag"]:#os.listdir(self.data_path):#["calculator","camera","food_bag","lightbulb","notebook","soda_can"]:#["camera"]:#["apple"]:#
             for ins_name in os.listdir(self.data_path+cat_name):#["camera_3"]:#["apple_1"]:#
                 ins_num = re.match(cat_name + "_" + "(.*)", ins_name).group(1)
                 for file_name in os.listdir(self.data_path+cat_name+"/"+ins_name):
@@ -234,7 +259,9 @@ class PoseTest:
 
         err_list = []
 
-        mode = "merge"
+        result = Result()
+
+
 
         print "start testing"
         # test
@@ -242,13 +269,13 @@ class PoseTest:
             print ins_name
             err_dic[ins_name] = []
 
-            if mode == "merge":
+            if self.mode == "merge":
                 dist = self.get_compare_dist(test_dic[ins_name])
 
             for test_file in test_dic[ins_name]:
                 print test_file
 
-                if mode == "merge":
+                if self.mode == "merge":
                     obs_aspect, gt_angle = self.get_obs_aspect(dist, test_file)
                 else:
                     obs_aspect, gt_angle = self.get_load_aspect(test_file)
@@ -286,7 +313,7 @@ class PoseTest:
             avg = sum(err_dic[ins_name])/float(len(err_dic[ins_name]))
             avg_dic[ins_name] = avg
             med = np.median(np.array(err_dic[ins_name]))
-            med_dic[ins_name] = med
+            med_dic[ins_name] = float(med)
 
             print "\ninstance", ins_name, "avg", avg, "med", med, "\n"
 
@@ -298,10 +325,17 @@ class PoseTest:
         print "avg", avg
         print "med", med
 
+        result.med_dic = med_dic
+        result.avg_dic = avg_dic
+        result.avg = avg
+        result.med = float(med)
+
+        result.save(self.state_path, "result_" + self.mode)
+
 if __name__ == '__main__':
 
     ds = DataSettings()
-
+    case = 2
     name = ds.get_pose_state_name()
 
     state_path = "/home/lku/Workspace/WRGBD_Test/" + name + "/"
@@ -309,7 +343,9 @@ if __name__ == '__main__':
     if not os.path.exists(state_path):
         os.makedirs(state_path)
 
-    pose_test = PoseTest("/home/lku/Dataset/rgbd-dataset/",state_path, ds)
-    pose_test.test()
-    # pose_test.build_states()
+    pose_test = PoseTest("/home/lku/Dataset/rgbd-dataset/",state_path, ds, case)
+    if case == 1:
+        pose_test.test()
+    elif case == 2:
+        pose_test.build_states()
     pass
