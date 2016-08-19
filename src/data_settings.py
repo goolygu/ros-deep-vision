@@ -181,7 +181,7 @@ class DataSettings:
 
     def get_pose_state_name(self):
         name = '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + '-' + str(self.conv2_top) + ')_' + "_" + self.filters + "_" + self.cnn_pose_state \
-                # + "_" + self.square
+                + "_" + self.square
 
         return name
 
