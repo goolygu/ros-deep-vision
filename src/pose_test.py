@@ -30,10 +30,15 @@ class CNNState:
 class Result:
 
     def __init__(self):
+        self.err_dic = {}
+        self.avg_dic = {}
+        self.med_dic = {}
         pass
     def save(self, path, name):
         with open(path + name + '.yaml', 'w') as f:
             yaml.dump(self, f, default_flow_style=False)
+
+
 
 class PoseTest:
 
@@ -51,6 +56,16 @@ class PoseTest:
         self.state_path = state_path
         self.dilate_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
         self.ds = ds
+
+    def load_result(self, path, name):
+        try:
+            f = open(path + name + '.yaml')
+            result = yaml.load(f)
+            return result
+        except:
+            print "failed loading", name
+            return None
+
     def load_cnn_state(self, name):
         try:
             f = open(self.state_path + name + '.yaml')
@@ -70,16 +85,70 @@ class PoseTest:
         aspect.set_pose_state_list(pose_state_list)
         return aspect
 
+    def fill_depth(self, depth):
+
+        show = False
+        if show:
+            s_depth = np.round(depth/float(np.amax(depth))*255.0).astype("uint8")
+            print s_depth
+            cv2.imshow("depth", s_depth)
+            cv2.waitKey(100)
+        new_depth = np.copy(depth)
+        for x in range(depth.shape[0]):
+            for y in range(depth.shape[1]):
+                if depth[x,y] == 0:
+                    new_depth[x,y] = closest_value_fast(depth,x,y)
+        if show:
+            s_new_depth = np.round(new_depth/float(np.amax(new_depth))*255.0).astype("uint8")
+            print s_new_depth
+            cv2.imshow("depth inpaint", s_new_depth)
+            cv2.waitKey(100)
+        return new_depth
+
+    def build_filled_depth_imgs(self):
+        for cat_name in os.listdir(self.data_path)[::1]:
+            for ins_name in os.listdir(self.data_path+cat_name)[::1]:
+                ins_num = re.match(cat_name + "_" + "(.*)", ins_name).group(1)
+                for file_name in os.listdir(self.data_path+cat_name+"/"+ins_name)[::1]:
+                    m = re.match(ins_name + "_" + '(.*)_pose\.txt$', file_name)
+                    if m:
+                        video_frame = m.group(1)
+                        video, frame = video_frame.split("_")
+                        print cat_name, ins_num, video, frame
+
+                        file_prefix = self.data_path + cat_name + "/" + ins_name + "/" + ins_name + "_" + video_frame
+                        depth_name = file_prefix + "_depthcrop.png"
+
+                        # skip if already created
+                        if os.path.isfile(file_prefix + "_filldepthcrop.npy"):
+                            continue
+
+                        depth = cv2.imread(depth_name, -1).astype("float")
+                        filled_depth = self.fill_depth(depth)
+                        np.save(file_prefix + "_filldepthcrop", filled_depth)
+
+                        # cmp_filled_depth = np.load(file_prefix + "_filldepthcrop.npy")
+                        # print cmp_filled_depth
+                        # print filled_depth
+                        # raw_input()
+                        # return
+
     def get_crop_pointcloud(self, file_prefix):
 
         center = [320,240]
         constant = 570.3
         MM_PER_M = 1000
 
-        depth_name = file_prefix + "_depthcrop.png"
-        depth = cv2.imread(depth_name, -1).astype("float")
-
-        if self.ds.square == 'inc':
+        if self.ds.cloud_gap == 'inpaint':
+            # depth = self.fill_depth(depth)
+            depth_name = file_prefix + "filldepthcrop.npy"
+            depth = np.load(file_prefix + "_filldepthcrop.npy")
+            if depth == None:
+                print "no depth"
+                return
+        else:
+            depth_name = file_prefix + "_depthcrop.png"
+            depth = cv2.imread(depth_name, -1).astype("float")
             depth[depth == 0] = np.nan
 
         # print depth
@@ -146,11 +215,11 @@ class PoseTest:
 
     def build_states(self):
 
-        cat_list = os.listdir(self.data_path)[42:45]
-        for cat_name in cat_list:#["food_bag"]:#os.listdir(self.data_path):#["camera"]:#["apple"]:#
-            for ins_name in os.listdir(self.data_path+cat_name):#["camera_3"]:#["apple_1"]:#
+        cat_list = os.listdir(self.data_path)
+        for cat_name in cat_list[::-1]:#["food_bag"]:#os.listdir(self.data_path):#["camera"]:#["apple"]:#
+            for ins_name in os.listdir(self.data_path+cat_name)[::-1]:#["camera_3"]:#["apple_1"]:#
                 ins_num = re.match(cat_name + "_" + "(.*)", ins_name).group(1)
-                for file_name in os.listdir(self.data_path+cat_name+"/"+ins_name):
+                for file_name in os.listdir(self.data_path+cat_name+"/"+ins_name)[::-1]:
                     m = re.match(ins_name + "_" + '(.*)_pose\.txt$', file_name)
                     if m:
                         video_frame = m.group(1)
@@ -173,7 +242,6 @@ class PoseTest:
                         cnn_state.frame = frame
 
                         cnn_state.save(self.state_path, ins_name + "_" + video_frame)
-
                         # break
 
     def angle_diff(self, a1, a2):
@@ -184,7 +252,7 @@ class PoseTest:
     def get_load_aspect(self, test_file):
         cnn_state = self.load_cnn_state(test_file)
         if cnn_state == None:
-            return None
+            return None, None
         aspect = self.state_to_aspect(cnn_state)
         return aspect, cnn_state.angle
 
@@ -228,7 +296,9 @@ class PoseTest:
         train_dic = {}
 
         # build up list of file names for training
-        for cat_name in ["food_bag"]:#os.listdir(self.data_path):#["calculator","camera","food_bag","lightbulb","notebook","soda_can"]:#["camera"]:#["apple"]:#
+        for cat_name in os.listdir(self.data_path):#["food_bag"]:#["calculator","camera","food_bag","lightbulb","notebook","soda_can"]:#["camera"]:#["apple"]:#
+            test_dic[cat_name] = {}
+            train_dic[cat_name] = {}
             for ins_name in os.listdir(self.data_path+cat_name):#["camera_3"]:#["apple_1"]:#
                 ins_num = re.match(cat_name + "_" + "(.*)", ins_name).group(1)
                 for file_name in os.listdir(self.data_path+cat_name+"/"+ins_name):
@@ -239,13 +309,13 @@ class PoseTest:
                         file_name = ins_name + "_" + video_frame
                         # if test case
                         if video == '2':
-                            if not ins_name in test_dic:
-                                test_dic[ins_name] = []
-                            test_dic[ins_name].append(file_name)
+                            if not ins_name in test_dic[cat_name]:
+                                test_dic[cat_name][ins_name] = []
+                            test_dic[cat_name][ins_name].append(file_name)
                         else:
-                            if not ins_name in train_dic:
-                                train_dic[ins_name] = []
-                            train_dic[ins_name].append(file_name)
+                            if not ins_name in train_dic[cat_name]:
+                                train_dic[cat_name][ins_name] = []
+                            train_dic[cat_name][ins_name].append(file_name)
 
         return test_dic, train_dic
 
@@ -253,89 +323,124 @@ class PoseTest:
 
         test_dic, train_dic = self.get_test_train_dic()
 
-        err_dic = {}
-        avg_dic = {}
-        med_dic = {}
-
-        err_list = []
-
         result = Result()
 
-
-
+        err_list = []
+        # print test_dic.keys()
+        # return
         print "start testing"
         # test
-        for ins_name in test_dic: #["notebook_1"]:#
-            print ins_name
-            err_dic[ins_name] = []
-
-            if self.mode == "merge":
-                dist = self.get_compare_dist(test_dic[ins_name])
-
-            for test_file in test_dic[ins_name]:
-                print test_file
-
-                if self.mode == "merge":
-                    obs_aspect, gt_angle = self.get_obs_aspect(dist, test_file)
-                else:
-                    obs_aspect, gt_angle = self.get_load_aspect(test_file)
-
-
-                if obs_aspect == None:
-                    continue
-
-                sim_dic = {}
-                max_sim = 0
-                best_angle = 0
-
-                for compare_file in train_dic[ins_name]:
-                    compare_cnn_state = self.load_cnn_state(compare_file)
-                    if compare_cnn_state == None:
-                        continue
-
-                    aspect = self.state_to_aspect(compare_cnn_state)
-
-                    sim = aspect.observation_similarity(obs_aspect)
-                    sim_dic[compare_cnn_state.angle] = sim
-
-                    if sim > max_sim:
-                        max_sim = sim
-                        best_angle = compare_cnn_state.angle
-
-                err = self.angle_diff(best_angle, gt_angle)
-                err_dic[ins_name].append(err)
-                err_list.append(err)
-                print err
-
-            if len(err_dic[ins_name]) == 0:
+        for cat_name in test_dic.keys()[0:15:1]:
+            print cat_name
+            result_cat = Result()
+            # result_file_cat_name = "result_" + self.mode + "_" + cat_name
+            result_file_cat_name = "result_" + self.ds.get_pose_state_test_name() + "_" + self.mode + "_" + cat_name
+            if os.path.isfile(self.state_path + result_file_cat_name + '.yaml'):
+                result_cat = self.load_result(self.state_path, result_file_cat_name)
+                for ins_name in test_dic[cat_name]:
+                    err_list += result_cat.err_dic[ins_name]
+                    result.err_dic[ins_name] = result_cat.err_dic[ins_name]
+                    result.avg_dic[ins_name] = result_cat.avg_dic[ins_name]
+                    result.med_dic[ins_name] = result_cat.med_dic[ins_name]
                 continue
 
-            avg = sum(err_dic[ins_name])/float(len(err_dic[ins_name]))
-            avg_dic[ins_name] = avg
-            med = np.median(np.array(err_dic[ins_name]))
-            med_dic[ins_name] = float(med)
 
-            print "\ninstance", ins_name, "avg", avg, "med", med, "\n"
 
-        if len(err_list) == 0:
-            return
-        avg = sum(err_list)/float(len(err_list))
-        med = np.median(np.array(err_list))
+            err_list_cat = []
+            for ins_name in test_dic[cat_name].keys(): #["notebook_1"]:#
+                print ins_name
+                result.err_dic[ins_name] = []
+                result_cat.err_dic[ins_name] = []
 
-        print "avg", avg
-        print "med", med
+                # create compare list of aspect
+                cmp_list = []
+                for compare_file in train_dic[cat_name][ins_name]:
+                    cmp_aspect, cmp_angle = self.get_load_aspect(compare_file)
+                    cmp_list.append((cmp_aspect,cmp_angle))
 
-        result.med_dic = med_dic
-        result.avg_dic = avg_dic
-        result.avg = avg
-        result.med = float(med)
+                if self.mode == "merge":
+                    dist = self.get_compare_dist(test_dic[cat_name][ins_name])
 
-        result.save(self.state_path, "result_" + self.mode)
+                for test_file in test_dic[cat_name][ins_name]:
+                    print test_file
+
+                    if self.mode == "merge":
+                        obs_aspect, gt_angle = self.get_obs_aspect(dist, test_file)
+                    else:
+                        obs_aspect, gt_angle = self.get_load_aspect(test_file)
+
+                    if obs_aspect == None:
+                        continue
+
+                    # sim_dic = {}
+                    max_sim = -float("inf")
+                    best_angle = 0
+
+                    for cmp_tuple in cmp_list:
+                        if self.ds.similarity == "L1":
+                            sim  = cmp_tuple[0].L1_similarity(obs_aspect)
+                        elif self.ds.similarity == "custom":
+                            sim  = cmp_tuple[0].observation_similarity(obs_aspect)
+                        elif self.ds.similarity == "clean":
+                            sim = cmp_tuple[0].similarity(obs_aspect)
+                        elif self.ds.similarity == "gaussian":
+                            sim = cmp_tuple[0].gaussian_similarity(obs_aspect)
+                        elif self.ds.similarity == "heavytail":
+                            sim = cmp_tuple[0].ht_similarity(obs_aspect)
+                        if sim > max_sim:
+                            max_sim = sim
+                            best_angle = cmp_tuple[1]
+
+                    # for compare_file in train_dic[cat_name][ins_name]:
+                    #
+                    #     cmp_aspect, cmp_angle = self.get_load_aspect(compare_file)
+                    #     # if cmp_aspect == None:
+                    #     #     continue
+                    #     sim = cmp_aspect.observation_similarity(obs_aspect)
+                    #     # sim_dic[cmp_angle] = sim
+                    #
+                    #     if sim > max_sim:
+                    #         max_sim = sim
+                    #         best_angle = cmp_angle
+
+                    err = self.angle_diff(best_angle, gt_angle)
+                    result.err_dic[ins_name].append(err)
+                    result_cat.err_dic[ins_name].append(err)
+                    err_list.append(err)
+                    err_list_cat.append(err)
+                    print err
+                #
+                # if len(result.err_dic[ins_name]) == 0:
+                #     continue
+
+                ins_avg = sum(result.err_dic[ins_name])/float(len(result.err_dic[ins_name]))
+                result.avg_dic[ins_name] = ins_avg
+                result_cat.avg_dic[ins_name] = ins_avg
+                ins_med = float(np.median(np.array(result.err_dic[ins_name])))
+                result.med_dic[ins_name] = ins_med
+                result_cat.med_dic[ins_name] = ins_med
+
+                print "\ninstance", ins_name, "avg", ins_avg, "med", ins_med, "\n"
+            print "save temporary"
+
+            result_cat.avg = sum(err_list_cat)/float(len(err_list_cat))
+            result_cat.med = float(np.median(np.array(err_list_cat)))
+            result_cat.save(self.state_path, result_file_cat_name)
+
+        # if len(err_list) == 0:
+        #     return
+        result.avg = sum(err_list)/float(len(err_list))
+        result.med = float(np.median(np.array(err_list)))
+
+        print "avg", result.avg
+        print "med", result.med
+
+        result.save(self.state_path, "result_" + self.ds.get_pose_state_test_name() + "_" + self.mode)
 
 if __name__ == '__main__':
 
     ds = DataSettings()
-    case = 2
+    case = 1
     name = ds.get_pose_state_name()
 
     state_path = "/home/lku/Workspace/WRGBD_Test/" + name + "/"
@@ -348,4 +453,6 @@ if __name__ == '__main__':
         pose_test.test()
     elif case == 2:
         pose_test.build_states()
+    elif case == 3:
+        pose_test.build_filled_depth_imgs()
     pass

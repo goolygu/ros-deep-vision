@@ -47,7 +47,10 @@ class DataSettings:
         ###### state only not saved
         self.filters = 'top'#'spread'#
         self.cnn_pose_state = 'xyz'#'reldist' #
-        self.square = 'dec'#'inc'#
+        self.square = 'inc'#'dec'#
+        self.cnn_pose_state_match = 'full'#'local'#'top'#
+        self.cloud_gap = 'inpaint'#'nan'#
+        self.similarity = 'heavytail'#'gaussian'#'clean'#'custom'#'L1'
         ###### Testing related
 
 
@@ -80,7 +83,7 @@ class DataSettings:
         self.tbp_test = True
 
 
-        case = 20
+        case = 1
         # over write 3 cases for comparison
         if case == 1 or case == 5:
             self.tbp = True
@@ -160,7 +163,7 @@ class DataSettings:
             self.filter_low_n = 15
         elif case == 20:
             self.conv5_top = 30
-            self.conv4_top = 2
+            self.conv4_top = 5
             self.conv3_top = 0
             self.conv2_top = 0
 
@@ -180,9 +183,13 @@ class DataSettings:
         return name
 
     def get_pose_state_name(self):
-        name = '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + '-' + str(self.conv2_top) + ')_' + "_" + self.filters + "_" + self.cnn_pose_state \
-                + "_" + self.square
+        name = '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + '-' + str(self.conv2_top) + ')_' + "_" + self.filters + "_" + \
+                "_" + self.square + "_" + self.cloud_gap
+                #self.cnn_pose_state \
+        return name
 
+    def get_pose_state_test_name(self):
+        name = self.cnn_pose_state + "_" + self.cnn_pose_state_match + "_" + self.similarity + "_case9"
         return name
 
     def get_test_name(self):

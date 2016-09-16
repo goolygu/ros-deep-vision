@@ -73,7 +73,7 @@ class DataMonster:
         self.visualizer.set_frame("/r2/head/asus_depth_optical_frame")
         self.visualizer.set_topics(['grasp_distribution', 'feature', "grasp_target"])
 
-        GPU_ID = 0
+        GPU_ID = 1
         if settings.caffevis_mode_gpu:
             caffe.set_mode_gpu()
             print 'CaffeVisApp mode: GPU'
@@ -586,6 +586,7 @@ class DataMonster:
                 # print type(dist_cf[sig][frame])
                 # remove nan
                 dist = dist_cf[sig][frame]
+                print "shape", np.array(dist).shape
                 nan_mask = np.any(np.isnan(dist), axis=1)
                 dist = dist[~nan_mask]
                 if self.ds.dist_to_grasp_point == "weightmean" or self.ds.dist_to_grasp_point == "weightdensepoint":
@@ -672,7 +673,9 @@ class DataMonster:
         for sig in dist.data_dict:
             for frame in dist.data_dict[sig]:
                 if sig in filter_xyz_dict:
-                    dist_cf[sig][frame] += filter_xyz_dict[sig]
+                    dist_cf[sig][frame] =  np.array(dist_cf[sig][frame]) + np.array(filter_xyz_dict[sig])
+                    # dist_cf[sig][frame] += filter_xyz_dict[sig]
+                    print np.array(dist_cf[sig][frame]).shape
                 else:
                     if sig in dist_cf:
                         dist_cf.pop(sig)
@@ -685,19 +688,8 @@ class DataMonster:
         else:
             filter_xy = self.get_filter_max_xy(layer_data, threshold)
         orig_xy = self.get_orig_xy(filter_xy, resize_ratio)
-        filter_xyz = self.get_average_xyz_from_point_cloud(pc, [orig_xy], self.average_grid)
-        return filter_xyz[0].tolist(), filter_xy
-
-    # def get_filter_xyz(self, layer_data, pc_array, threshold):
-    #     image_size_orig = self.input_manager.get_after_crop_size()
-    #     resize_ratio = float(image_size_orig[0]) / float(layer_data.shape[0])
-    #     if True:
-    #         filter_xy = self.get_filter_avg_xy(layer_data, threshold)
-    #     else:
-    #         filter_xy = self.get_filter_max_xy(layer_data, threshold)
-    #     orig_xy = self.get_orig_xy(filter_xy, resize_ratio)
-    #     filter_xyz = self.get_average_xyz_from_point_cloud_array(pc_array, [orig_xy], self.average_grid)
-    #     return filter_xyz[0], filter_xy
+        filter_xyz = self.get_average_xyz_from_point_cloud(pc, orig_xy, self.average_grid)
+        return filter_xyz, filter_xy
 
 
     def get_all_filter_xyz_notbp(self, data, dist):
@@ -1130,7 +1122,7 @@ class DataMonster:
 
     def get_top_filters_in_list(self, layer_response, filter_tree, number):
 
-        filter_list = list(filter_tree)
+        filter_list = filter_tree.keys()
         max_list = np.zeros(len(filter_list))
         for i, filter_id in enumerate(filter_list):
             max_list[i] = np.amax(layer_response[filter_id])
@@ -1142,7 +1134,7 @@ class DataMonster:
         for idx in sorted_idx_list:
             sorted_filter_idx_list.append(filter_list[idx])
 
-        return sorted_filter_idx_list.tolist()
+        return sorted_filter_idx_list
 
     def get_top_filters(self, layer_response, number):
         num_filter = layer_response.shape[0]
@@ -1348,39 +1340,36 @@ class DataMonster:
         return np.mgrid[0:receptive_field_size,0:receptive_field_size]
 
 
-    def get_average_xyz_from_point_cloud(self, pc, max_xy_list, receptive_grid):
+    def get_average_xyz_from_point_cloud(self, pc, xy, receptive_grid):
         pc_array = pc.reshape((pc.shape[0]*pc.shape[1], pc.shape[2]))
-        output = []
-        for xy in max_xy_list:
-            if np.isnan(xy[0]):
-                output.append([float('nan'),float('nan'),float('nan')])
-                print "filter response zero no max xy", xy
-                continue
-            # receptive grid has shape (2,w,w) that contains the grid x idx and y idx
-            grid = np.zeros(receptive_grid.shape)
-            grid[0] = xy[0] + receptive_grid[0]
-            grid[1] = xy[1] + receptive_grid[1]
 
-            # this step flattens to 2 arrays of x coordinates and y coordinates
-            xy_receptive_list =np.reshape(grid, [2,-1])
+        if np.isnan(xy[0]):
+            return [float('nan'),float('nan'),float('nan')]
+            print "filter response zero no max xy", xy
 
-            # remove out of bound index
-            xy_receptive_list_filtered  = np.array([]).reshape([2,0])
+        # receptive grid has shape (2,w,w) that contains the grid x idx and y idx
+        grid = np.zeros(receptive_grid.shape)
+        grid[0] = xy[0] + receptive_grid[0]
+        grid[1] = xy[1] + receptive_grid[1]
 
-            for i in range(xy_receptive_list.shape[1]):
-                x = xy_receptive_list[0,i]
-                y = xy_receptive_list[1,i]
-                if x < pc.shape[0] and x >= 0 and y < pc.shape[1] and y >= 0:
-                    xy_receptive_list_filtered = np.append(xy_receptive_list_filtered, xy_receptive_list[:,i].reshape([2,1]), axis=1)
+        # this step flattens to 2 arrays of x coordinates and y coordinates
+        xy_receptive_list =np.reshape(grid, [2,-1])
 
-            idx_receptive_list = np.ravel_multi_index(xy_receptive_list_filtered.astype(int),pc.shape[0:2])
-            avg = np.nanmean(pc_array[idx_receptive_list],axis=0)
-            if np.isnan(avg[0]) or np.isnan(avg[1]) or np.isnan(avg[2]):
-                print "nan found", xy
-            # avg = np.nanmedian(a[idx_receptive_list],axis=0)
-            output.append(avg)
+        # remove out of bound index
+        xy_receptive_list_filtered  = np.array([]).reshape([2,0])
 
-        return np.array(output)
+        for i in range(xy_receptive_list.shape[1]):
+            x = xy_receptive_list[0,i]
+            y = xy_receptive_list[1,i]
+            if x < pc.shape[0] and x >= 0 and y < pc.shape[1] and y >= 0:
+                xy_receptive_list_filtered = np.append(xy_receptive_list_filtered, xy_receptive_list[:,i].reshape([2,1]), axis=1)
+
+        idx_receptive_list = np.ravel_multi_index(xy_receptive_list_filtered.astype(int),pc.shape[0:2])
+        avg = np.nanmean(pc_array[idx_receptive_list],axis=0)
+        if np.isnan(avg[0]) or np.isnan(avg[1]) or np.isnan(avg[2]):
+            print "nan found", xy
+
+        return avg.tolist()
 
     def show_point_cloud(self, name):
         rospy.wait_for_service('show_point_cloud')

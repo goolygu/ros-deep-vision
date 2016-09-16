@@ -3,6 +3,39 @@ from perception_msgs.msg import State
 from geometry_msgs.msg import Point, Pose
 from distribution import *
 
+def closest_value(mat, p_x, p_y):
+    min_dist = 1000000;
+    closest_value = 0
+    for x in range(mat.shape[0]):
+        for y in range(mat.shape[1]):
+            if mat[x,y] > 0:
+                dist = (x-p_x)**2 + (y-p_y)**2
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_value = mat[x,y]
+
+    return closest_value
+
+def closest_value_fast(mat, p_x, p_y):
+    # create a sprial see http://stackoverflow.com/questions/398299/looping-in-a-spiral
+    X = max(mat.shape[0] - p_x, p_x)*2
+    Y = max(mat.shape[1] - p_y, p_y)*2
+    x = y = 0
+    dx = 0
+    dy = -1
+    for i in range(max(X, Y)**2):
+        if (-X/2 < x <= X/2) and (-Y/2 < y <= Y/2):
+            # print (x, y),
+            x_cord, y_cord = x+p_x, y+p_y
+            if x_cord >= 0 and x_cord < mat.shape[0] and y_cord >=0 and y_cord < mat.shape[1] and mat[x_cord, y_cord] > 0:
+                return mat[x_cord, y_cord]
+                
+        if x == y or (x < 0 and x == -y) or (x > 0 and x == 1-y):
+            dx, dy = -dy, dx
+        x, y = x+dx, y+dy
+
+
+
 def state_list_to_dist(state_list):
     dist = Distribution()
     for state in state_list:
