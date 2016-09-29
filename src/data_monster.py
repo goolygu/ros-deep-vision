@@ -73,7 +73,7 @@ class DataMonster:
         self.visualizer.set_frame("/r2/head/asus_depth_optical_frame")
         self.visualizer.set_topics(['grasp_distribution', 'feature', "grasp_target"])
 
-        GPU_ID = 1
+        GPU_ID = 0
         if settings.caffevis_mode_gpu:
             caffe.set_mode_gpu()
             print 'CaffeVisApp mode: GPU'
@@ -1341,11 +1341,11 @@ class DataMonster:
 
 
     def get_average_xyz_from_point_cloud(self, pc, xy, receptive_grid):
-        pc_array = pc.reshape((pc.shape[0]*pc.shape[1], pc.shape[2]))
-
         if np.isnan(xy[0]):
             return [float('nan'),float('nan'),float('nan')]
             print "filter response zero no max xy", xy
+
+        pc_array = pc.reshape((pc.shape[0]*pc.shape[1], pc.shape[2]))
 
         # receptive grid has shape (2,w,w) that contains the grid x idx and y idx
         grid = np.zeros(receptive_grid.shape)
@@ -1468,7 +1468,7 @@ class DataMonster:
         for idx, data in enumerate(data_list):
             print idx,
             sys.stdout.flush()
-
+            self.net_proc_forward_layer(data.img, data.mask)
             layer_diff_list[idx,:], img_src_list[idx,:] = self.load_layer_fix_filter(load_layer, fix_layer, fix_layer_data_list[idx], data, filter_idx)
 
         return layer_diff_list, img_src_list
@@ -1476,9 +1476,10 @@ class DataMonster:
     # perform forward path and backward path while zeroing out all filter response except for filter_idx
     # return layer_diff_list which is the load layer diff and img_src_list which is the abs diff if back propagate to image layer
     def load_layer_fix_filter(self, load_layer, fix_layer, fix_layer_diff, data, filter_idx):
-        self.net_proc_forward_layer(data.img, data.mask)
+        #self.net_proc_forward_layer(data.img, data.mask)
         self.net_proc_backward_with_data(filter_idx, fix_layer_diff, fix_layer)
         layer_diff = self.net.blobs[load_layer].diff[0,:]
+
         # mean is to average over all filters
         if self.ds.img_src_loc == "absolute":
             img_src = np.absolute(self.net.blobs['data'].diff[0,:]).mean(axis=0)
@@ -1487,6 +1488,9 @@ class DataMonster:
         # make a copy
         layer_diff = copy.deepcopy(layer_diff)
         img_src = copy.deepcopy(img_src)
+
+
+
         return layer_diff, img_src
 
     # binaraizes such that output is a 1-d array where each entry is whether a filter fires, also ouputs the max value

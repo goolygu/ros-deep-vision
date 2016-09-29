@@ -1,0 +1,6 @@
+string name
+string action
+string target_type
+int32 result
+---
+int32 result

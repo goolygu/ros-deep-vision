@@ -13,11 +13,17 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   tf
+  pcl_conversions
+  pcl_ros
+  cv_bridge
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(Boost REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(VTK REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -56,11 +62,10 @@ catkin_python_setup()
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+   FILES
+   SaveData.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -70,10 +75,10 @@ catkin_python_setup()
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   sensor_msgs#   std_msgs
-# )
+generate_messages(
+   DEPENDENCIES
+   std_msgs
+)
 
 ###################################
 ## catkin specific configuration ##
@@ -87,6 +92,7 @@ catkin_python_setup()
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES temp
+   CATKIN_DEPENDS message_runtime
 #  CATKIN_DEPENDS interactive_markers pcl_conversion pcl_ros roscpp rospy sensor_msgs std_msgs tf
 #  DEPENDS system_lib
 )
@@ -99,7 +105,9 @@ catkin_package(
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a cpp library
@@ -109,15 +117,22 @@ include_directories(
 
 ## Declare a cpp executable
 # add_executable(temp_node src/temp_node.cpp)
-
+add_executable(input_server src/input_server.cpp src/point_cloud_manager.cpp)
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(temp_node temp_generate_messages_cpp)
+#add_dependencies(input_server perception_msgs_gencpp)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(temp_node
 #   ${catkin_LIBRARIES}
 # )
+
+target_link_libraries(input_server
+  ${catkin_LIBRARIES}
+  ${VTK_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
 
 #############
 ## Install ##

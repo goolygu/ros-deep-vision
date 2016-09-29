@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import math
 import cv2
 import pcl
@@ -40,11 +41,11 @@ class InputManager:
         if self.min_max_box[0] + off_set[0] < 0:
             off_set[0] = 0 - self.min_max_box[0]
         if self.min_max_box[1] + off_set[0] >= self.frame_x:
-            off_set[0] = self.frame_x -1 -self.min_max_box[1]
+            off_set[0] = self.frame_x -self.min_max_box[1]
         if self.min_max_box[2] + off_set[1] < 0:
             off_set[1] = 0 - self.min_max_box[2]
         if self.min_max_box[3] + off_set[1] >= self.frame_y:
-            off_set[1] = self.frame_y -1 -self.min_max_box[3]
+            off_set[1] = self.frame_y -self.min_max_box[3]
 
         self.min_max_box[0] += off_set[0]
         self.min_max_box[1] += off_set[0]
@@ -150,20 +151,22 @@ class InputManager:
         mask = self.crop(mask)
         mask = cv2.resize(mask, self.input_dims)
 
+
         img_name = path + data.name + "_rgb.png"
         img = cv2_read_file_rgb(img_name)
         if img is None:
             print "[ERROR] No image"
             return None, None
 
+
         img = self.crop(img)
         img = cv2.resize(img, self.input_dims)
 
         # load point cloud
         pc_array = self.get_point_cloud_array(path, data.name, self.ds.pointcloud)
-
         pc = pc_array.reshape(self.point_cloud_shape + (3,))
         pc = self.crop(pc)
+
 
         if self.visualize:
             cv2.imshow("img", img)
@@ -275,3 +278,11 @@ class InputManager:
         avg_y = np.sum(xy_grid[1] * mask_norm)
 
         return np.around(np.array([avg_x, avg_y])).astype(int)
+
+if __name__ == '__main__':
+    print "test"
+    input_manager = InputManager(None,None)
+    input_manager.set_width(260)
+    input_manager.set_box([68,312,221,394],0.5)
+    input_manager.set_center([187,306])
+    print input_manager.min_max_box
