@@ -5,7 +5,7 @@ import sys
 from data_monster import *
 from data_collector import *
 import settings
-from perception_msgs.srv import SaveData
+from ros_deep_vision.srv import SaveData
 from geometry_msgs.msg import Point, Pose
 from data_util import *
 from data_settings import *
