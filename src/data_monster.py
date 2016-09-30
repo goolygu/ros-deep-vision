@@ -28,7 +28,7 @@ from data_ploter import *
 from distribution import *
 import pcl
 
-from perception_msgs.srv import String2
+from ros_deep_vision.srv import String2
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 

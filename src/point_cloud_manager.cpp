@@ -32,7 +32,7 @@ PointCloudManager::PointCloudManager(string image_topic, string depth_topic, str
   save_data_service_ = node_.advertiseService("save_point_cloud", &PointCloudManager::handle_save_data, this);
   save_data_service_current_ = node_.advertiseService("save_point_cloud_current", &PointCloudManager::handle_save_data_current, this);
   save_data_service_multi_ = node_.advertiseService("save_point_cloud_multi", &PointCloudManager::handle_save_data_multi, this);
-//  show_cloud_service_ = node_.advertiseService("show_point_cloud", &PointCloudManager::handle_show_cloud, this);
+  show_cloud_service_ = node_.advertiseService("show_point_cloud", &PointCloudManager::handle_show_cloud, this);
 //  get_centroid_service_ = node_.advertiseService("get_centroid", &PointCloudManager::handle_get_centroid, this);
   point_pub_ =  node_.advertise<visualization_msgs::Marker>("/point_cloud_center", 10);
 }
@@ -486,8 +486,8 @@ bool PointCloudManager::handle_save_data_multi(ros_deep_vision::SaveData::Reques
 
   return true;
 }
-/*
-bool PointCloudManager::handle_show_cloud(perception_msgs::String2::Request &req, perception_msgs::String2::Response &res)
+
+bool PointCloudManager::handle_show_cloud(ros_deep_vision::String2::Request &req, ros_deep_vision::String2::Response &res)
 {
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_ptr;
   cloud_ptr = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -502,7 +502,7 @@ bool PointCloudManager::handle_show_cloud(perception_msgs::String2::Request &req
 
   return true;
 }
-*/
+
 /*
 bool PointCloudManager::handle_get_centroid(perception_msgs::GetPoint::Request &req, perception_msgs::GetPoint::Response &res)
 {

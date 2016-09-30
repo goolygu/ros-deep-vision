@@ -65,6 +65,7 @@ catkin_python_setup()
 add_service_files(
    FILES
    SaveData.srv
+   String2.srv
 )
 
 ## Generate actions in the 'action' folder

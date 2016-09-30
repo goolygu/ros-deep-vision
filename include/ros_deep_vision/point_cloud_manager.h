@@ -29,7 +29,7 @@
 #include <visualization_msgs/Marker.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <ros_deep_vision/SaveData.h>
-//#include <perception_msgs/String2.h>
+#include <ros_deep_vision/String2.h>
 //#include <perception_msgs/GetPoint.h>
 
 #include <pcl/io/pcd_io.h>
@@ -83,7 +83,7 @@ private:
   bool handle_save_data(ros_deep_vision::SaveData::Request &req, ros_deep_vision::SaveData::Response &res);
   bool handle_save_data_current(ros_deep_vision::SaveData::Request &req, ros_deep_vision::SaveData::Response &res);
   bool handle_save_data_multi(ros_deep_vision::SaveData::Request &req, ros_deep_vision::SaveData::Response &res);
-//  bool handle_show_cloud(perception_msgs::String2::Request &req, perception_msgs::String2::Response &res);
+  bool handle_show_cloud(ros_deep_vision::String2::Request &req, ros_deep_vision::String2::Response &res);
 //  bool handle_get_centroid(perception_msgs::GetPoint::Request &req, perception_msgs::GetPoint::Response &res);
   bool visualize(Eigen::Vector4f point);
 //  void depth_callback(const sensor_msgs::ImageConstPtr& depth);
