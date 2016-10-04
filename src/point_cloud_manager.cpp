@@ -228,7 +228,7 @@ void PointCloudManager::segment_table(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cl
       count++;
     }
   }
-  cout << "inlier size " << mask.size() << endl;
+  cout << "inlier size " << count << endl;
 
 //  for (int i = 0; i < inliers->indices.size(); i++)
 //  {

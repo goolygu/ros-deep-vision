@@ -25,7 +25,7 @@ import rospkg
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-from perception_msgs.srv import *
+from ros_deep_vision.srv import *
 from geometry_msgs.msg import *
 from visualization_msgs.msg import *
 import yaml
