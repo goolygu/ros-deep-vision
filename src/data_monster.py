@@ -102,6 +102,9 @@ class DataMonster:
         # self.input_manager.set_width(self.ds.input_width)
         # self.point_cloud_shape = (480,640)
 
+    def set_frame(self, frame):
+        self.visualizer.set_frame(frame)
+
     def set_box(self, min_max_box, margin_ratio):
         self.input_manager.set_box(min_max_box, margin_ratio)
 
@@ -651,7 +654,7 @@ class DataMonster:
                 self.visualizer.publish_point_array(dist_cf[sig][frame], idx, ns, 'grasp_distribution', color_map[frame], Marker.POINTS, 0.4, 0.01 )
 
 
-    def show_feature(self, filter_xyz_dict):
+    def show_feature(self, filter_xyz_dict, ns_prefix=""):
         color_map = {}
         color_map[1] = (1,1,0)
         color_map[2] = (0,1,1)
@@ -663,7 +666,7 @@ class DataMonster:
 
         idx = 0
         for sig in filter_xyz_dict:
-            ns = "/" + "/".join([str(c) for c in sig])
+            ns = ns_prefix + "/" + "/".join([str(c) for c in sig])
             self.visualizer.publish_point_array([filter_xyz_dict[sig]], idx, ns, 'feature', color_map[len(sig)], Marker.POINTS, 0.9, 0.01 )
 
     # add offset from feature xyz to grasp_points

@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<launch>
+	<node pkg="ros_deep_vision" type="input_server" name="input_server" output="screen">
+		<param name="mode" value="asus"/>
+		<remap from="/asus/rgb/image_raw" to="/camera/rgb/image_raw"/>
+		<remap from="/asus/depth/image_raw" to="/camera/depth/image_raw"/>
+		<remap from="/asus/depth_registered/points" to="/camera/depth_registered/points"/>
+	</node>	
+</launch>
