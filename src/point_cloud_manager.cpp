@@ -160,16 +160,18 @@ void PointCloudManager::get_below_table_mask(pcl::PointCloud<pcl::PointXYZRGBA>:
   }
 
   // remove anything below the table
-  for(size_t i = 0; i< cloud_ptr->points.size(); i++)
+  if (false)
   {
-    double d = pcl::pointToPlaneDistanceSigned (cloud_ptr->points[i], coefficients->values[0],coefficients->values[1], coefficients->values[2], coefficients->values[3]);
-    if(d > -0.02)
+    for(size_t i = 0; i< cloud_ptr->points.size(); i++)
     {
-      mask[i] = -1;
+      double d = pcl::pointToPlaneDistanceSigned (cloud_ptr->points[i], coefficients->values[0],coefficients->values[1], coefficients->values[2], coefficients->values[3]);
+      if(d > -0.02)
+      {
+        mask[i] = -1;
+      }
+
     }
-
   }
-
 //  pcl::ExtractIndices<pcl::PointXYZRGBA> extract ;
 //  extract.setInputCloud (cloud_ptr);
 //  extract.setIndices (inliers);
@@ -194,28 +196,8 @@ void PointCloudManager::segment_table(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cl
 
 void PointCloudManager::segment_table(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_ptr, vector<int> mask)
 {
-//  cout << "cloud size before " << cloud_ptr->size() << endl;
-//  pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_table_ptr(new pcl::PointCloud<pcl::PointXYZRGBA>);
-//  //cout << "segment" << endl;
-//  pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-//  pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
-//  pcl::PointIndices::Ptr outliers (new pcl::PointIndices);
-//  // Create the segmentation object
-//  pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
-//  // Optional
-//  seg.setOptimizeCoefficients (true);
-//  // Mandatory
-//  seg.setModelType (pcl::SACMODEL_PLANE);
-//  seg.setMethodType (pcl::SAC_RANSAC);
-//  seg.setDistanceThreshold (0.01);
-//
-//  seg.setInputCloud(cloud_ptr);
-//  seg.segment (*inliers, *coefficients);
-//
-//  cout << "cloud ptr size " << cloud_ptr->points.size() << endl;
-  const float bad_point = std::numeric_limits<float>::quiet_NaN();
-//
 
+  const float bad_point = std::numeric_limits<float>::quiet_NaN();
 
   int count = 0;
   for (int i=0; i < mask.size(); i++)
@@ -230,32 +212,6 @@ void PointCloudManager::segment_table(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cl
   }
   cout << "inlier size " << count << endl;
 
-//  for (int i = 0; i < inliers->indices.size(); i++)
-//  {
-//    int idx = inliers->indices[i];
-//    cloud_ptr->points[idx].x = bad_point;
-//    cloud_ptr->points[idx].y = bad_point;
-//    cloud_ptr->points[idx].z = bad_point;
-//  }
-//
-//  // remove anything below the table
-//  for(size_t i = 0; i< cloud_ptr->points.size(); i++)
-//  {
-//    double d = pcl::pointToPlaneDistanceSigned (cloud_ptr->points[i], coefficients->values[0],coefficients->values[1], coefficients->values[2], coefficients->values[3]);
-//    if(d > -0.02)
-//    {
-//      cloud_ptr->points[i].x = bad_point;
-//      cloud_ptr->points[i].y = bad_point;
-//      cloud_ptr->points[i].z = bad_point;
-//    }
-//
-//  }
-
-//
-//  cout << "cloud size " << cloud_ptr->size() << endl;
-//
-
-
 }
 
 void PointCloudManager::save_cluster_box(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_ptr, string name)
@@ -269,30 +225,30 @@ void PointCloudManager::save_cluster_box(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr
    pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
 //   pcl::search::OrganizedNeighbor<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::OrganizedNeighbor<pcl::PointXYZRGBA>);
 
-   tree->setInputCloud (cloud_clean);
+   tree->setInputCloud(cloud_clean);
 
    std::vector<pcl::PointIndices> cluster_indices;
    pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
-   ec.setClusterTolerance (0.02); // 2cm
-   ec.setMinClusterSize (100);
-   ec.setMaxClusterSize (2500000);
+   ec.setClusterTolerance(0.02); // 2cm
+   ec.setMinClusterSize(100);
+   ec.setMaxClusterSize(2500000);
 
-   ec.setSearchMethod (tree);
+   ec.setSearchMethod(tree);
 
-   ec.setInputCloud (cloud_clean);
+   ec.setInputCloud(cloud_clean);
 
-   ec.extract (cluster_indices);
+   ec.extract(cluster_indices);
 
    ostringstream box_xy_ss;
 
-   int j = 0;
-   for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
+  //  int j = 0;
+   for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin(); it != cluster_indices.end(); ++it)
    {
      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZRGBA>);
      double sum_x = 0, sum_y = 0;
      int num_points = 0;
      int min_x=10000, min_y=10000, max_x=0, max_y=0;
-     for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); ++pit)
+     for (std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
      {
        int idx_orig = mapping[*pit];
        int x = idx_orig / cloud_ptr->width;
@@ -308,7 +264,7 @@ void PointCloudManager::save_cluster_box(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr
        if (y > max_y)
          max_y = y;
        num_points++;
-       cloud_cluster->points.push_back (cloud_ptr->points[*pit]); //*
+       cloud_cluster->points.push_back(cloud_ptr->points[*pit]); //*
      }
 
      double avg_x = sum_x/num_points;
@@ -316,17 +272,17 @@ void PointCloudManager::save_cluster_box(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr
 
      box_xy_ss << min_x << "," << max_x << "," << min_y << "," << max_y << endl;
 
-     cout << box_xy_ss.str();
+     cout << min_x << "," << max_x << "," << min_y << "," << max_y << endl;
 
-     cloud_cluster->width = cloud_cluster->points.size ();
+     cloud_cluster->width = cloud_cluster->points.size();
      cloud_cluster->height = 1;
      cloud_cluster->is_dense = true;
 
-     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size () << " data points." << std::endl;
-     std::stringstream ss;
-     ss << "cloud_cluster_" << j << ".pcd";
+     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size() << " data points." << std::endl;
+    //  std::stringstream ss;
+    //  ss << "cloud_cluster_" << j << ".pcd";
 //     writer.write<pcl::PointXYZ> (ss.str (), *cloud_cluster, false); //*
-     j++;
+    //  j++;
    }
 
    ofstream file;
@@ -385,9 +341,6 @@ void PointCloudManager::save_large_cluster_box(pcl::PointCloud<pcl::PointXYZRGBA
          max_y = y;
        cloud_cluster->points.push_back (cloud_ptr->points[*pit]); //*
      }
-
-
-
 
      cloud_cluster->width = cloud_cluster->points.size ();
      cloud_cluster->height = 1;
@@ -478,7 +431,17 @@ bool PointCloudManager::handle_save_data_multi(ros_deep_vision::SaveData::Reques
   pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_ptr_seg (new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud_ptr_));
   pcl::io::savePCDFileASCII (ros_path_ + current_folder_ + req.name + ".pcd", *cloud_ptr_);
   this->segment_table(cloud_ptr_seg);
-  this->save_large_cluster_box(cloud_ptr_seg, ros_path_ + current_folder_ + req.name);
+  // This is for cluttered scenario, produces one large image box
+  if (false)
+  {
+    this->save_large_cluster_box(cloud_ptr_seg, ros_path_ + current_folder_ + req.name);
+  }
+  // this creates many boxes based on point cloud
+  else
+  {
+    this->save_cluster_box(cloud_ptr_seg, ros_path_ + current_folder_ + req.name);
+  }
+
 
   pcl::io::savePCDFileASCII (ros_path_ + current_folder_ + req.name + "_seg.pcd", *cloud_ptr_seg);
   }
@@ -576,7 +539,3 @@ bool PointCloudManager::debug_multi(string file_name)
   this->save_cluster_box(cloud_ptr, ros_path_ + current_folder_ + file_name + "_debug");
 
 }
-
-
-
-

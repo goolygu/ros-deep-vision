@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<launch>
+	<node pkg="ros_deep_vision" type="data_collector.py" name="data_collector_r2" output="screen">
+		<remap from="/asus/rgb/image_raw" to="/r2/head/asus/rgb/image_raw"/>
+		<remap from="/asus/depth/image_raw" to="/r2/head/asus/depth/image_raw"/>
+	</node>	
+</launch>

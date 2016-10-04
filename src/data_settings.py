@@ -17,7 +17,9 @@ class DataSettings:
             self.n_conv2_f = 0
 
         self.back_prop_mode = 'grad' # grad for gradient, deconv
-        self.avg_pointcloud_width = 5
+
+        # how large of area should the mean xyz location be based on on the point cloud
+        self.avg_pointcloud_width = 2#5
 
         self.thres_conv5 = 0#20# 15#20
         self.thres_conv4 = 0#5# 3#2
@@ -43,6 +45,9 @@ class DataSettings:
         self.input_width = 260
 
         self.img_src_loc = "relu" #"absolute"#
+
+        # use mask centering if you want the image to be centered based on the mask. Use on cluttered dataset
+        self.mask_centering = False
 
         ###### state only not saved
         self.filters = 'top'#'spread'#
@@ -83,8 +88,8 @@ class DataSettings:
         self.tbp_test = True
 
 
-        case = 1
-        # over write 3 cases for comparison
+        case = 20
+        # comparing 5 different cases with and without targeted backpropagation
         if case == 1 or case == 5:
             self.tbp = True
             self.tbp_str = 'tbp'
@@ -161,8 +166,9 @@ class DataSettings:
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = False
             self.filter_low_n = 15
+        # This is for just getting features from an input
         elif case == 20:
-            self.conv5_top = 30
+            self.conv5_top = 20
             self.conv4_top = 5
             self.conv3_top = 0
             self.conv2_top = 0

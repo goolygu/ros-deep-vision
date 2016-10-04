@@ -51,24 +51,17 @@ class Data:
 
 
 class DataCollector:
-    def __init__(self, path, asus_only):
+    def __init__(self, path):
 
         self.bridge = CvBridge()
         self.camera_frame = "/r2/head/asus_depth_optical_frame"
 
         self.lock = threading.Lock()
         self.path = path
-        # self.pose_topic =  "/rviz_moveit_motion_planning_display/robot_interaction_interactive_marker_topic/feedback"
-        # self.pose_sub = rospy.Subscriber(self.pose_topic, InteractiveMarkerFeedback, self.pose_callback, queue_size=1)
-        # self.rgb_sub = rospy.Subscriber("/r2/head/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
-        # self.depth_sub = rospy.Subscriber("/r2/head/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
 
-        if asus_only:
-            self.rgb_sub = rospy.Subscriber("/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
-            self.depth_sub = rospy.Subscriber("/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
-        else:
-            self.rgb_sub = rospy.Subscriber("/r2/head/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
-            self.depth_sub = rospy.Subscriber("/r2/head/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
+        self.rgb_sub = rospy.Subscriber("/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
+        self.depth_sub = rospy.Subscriber("/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
+
 
         self.mask_sub = rospy.Subscriber("/image_mask",Image, self.mask_callback, queue_size=1)
         self.listener = tf.TransformListener()

@@ -1,0 +1,5 @@
+<?xml version="1.0" ?>
+<launch>
+	<node pkg="ros_deep_vision" type="data_collector.py" name="data_collector" output="screen">
+	</node>	
+</launch>

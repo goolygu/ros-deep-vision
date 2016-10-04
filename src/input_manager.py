@@ -18,7 +18,7 @@ class InputManager:
         self.input_dims = input_dims
         self.frame_x = 480
         self.frame_y = 640
-        self.min_box = 300
+        self.min_box = 50#100#300
         # self.set_box([200,460,180,440], 0)
         self.set_width(self.ds.input_width)
         self.point_cloud_shape = (480,640)
@@ -144,9 +144,11 @@ class InputManager:
             print "[ERROR] No mask"
             return None, None
         mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
-        if not self.ds.dataset == "set1":
+        if self.ds.mask_centering:
             center = self.get_mask_center(mask)
             self.set_center(center)
+
+        print "crop", self.min_max_box
 
         mask = self.crop(mask)
         mask = cv2.resize(mask, self.input_dims)

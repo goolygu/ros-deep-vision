@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="command_args" value="-d $(find ros_deep_vision)/config/ros_deep_vision.rviz" />  
+  <node name="ros_deep_vision_rviz" pkg="rviz" type="rviz" respawn="false"
+	args="$(arg command_args)" output="screen">
+  </node>
+</launch>
