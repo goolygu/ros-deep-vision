@@ -1,33 +1,24 @@
 #! /usr/bin/env python
+# This is the config file
+
 class DataSettings:
-    def __init__(self):
+    def __init__(self, case=1):
 
-        self.tbp = True
-        if self.tbp:
-            self.tbp_str = 'tbp'
-            self.n_conv5_f = 1#0#3#5
-            self.n_conv4_f = 0#3#9#3
-            self.n_conv3_f = 0#3#27#3
-            self.n_conv2_f = 0
-        else:
-            self.tbp_str = 'notbp'
-            self.n_conv5_f = 0#3#0#3#5
-            self.n_conv4_f = 9#9#3#9#3
-            self.n_conv3_f = 18#27#3#27#3
-            self.n_conv2_f = 0
-
+        # backprop with gradient or deconvolution
         self.back_prop_mode = 'grad' # grad for gradient, deconv
 
         # how large of area should the mean xyz location be based on on the point cloud
-        self.avg_pointcloud_width = 2#5
+        self.avg_pointcloud_width = 5
 
-        self.thres_conv5 = 0#20# 15#20
-        self.thres_conv4 = 0#5# 3#2
-        self.thres_conv3 = 0#0.2# 0.1#0.2
+        self.thres_conv5 = 0
+        self.thres_conv4 = 0
+        self.thres_conv3 = 0
         self.thres_conv2 = 0
 
+        # whether to backprop all the way to the image to locate
         self.location_layer = "image" #"mid" #
 
+        # only backprop a single
         self.backprop_xy = 'sin' #'all' #
 
         # avg back prop to image and do avg, max does filter level max xyz
@@ -37,59 +28,50 @@ class DataSettings:
 
         self.dataset = 'set7'
 
-        self.frame_list_conv2 = []
-        self.frame_list_conv3 = ["r2/left_thumb_tip","r2/left_index_tip"]
-        self.frame_list_conv4 = ["r2/left_palm"]
-        self.frame_list_conv5 = []
-
         self.input_width = 260
 
+        # xy location on image plane based on absolute derivative or derivative above 0
         self.img_src_loc = "relu" #"absolute"#
 
-        # use mask centering if you want the image to be centered based on the mask. Use on cluttered dataset
-        self.mask_centering = False
+        # use mask centering if you want the image to be centered based on the mask. Use on cluttered dataset.
+        self.mask_centering = True#False
 
-        ###### state only not saved
+        ###### Pose test
         self.filters = 'top'#'spread'#
         self.cnn_pose_state = 'xyz'#'reldist' #
         self.square = 'inc'#'dec'#
         self.cnn_pose_state_match = 'full'#'local'#'top'#
         self.cloud_gap = 'inpaint'#'nan'#
         self.similarity = 'heavytail'#'gaussian'#'clean'#'custom'#'L1'
+
         ###### Testing related
 
-
         self.filter_test = 'top' #'all' #
-        if self.tbp:
-            self.conv5_top = 1#0#3#3
-            self.conv4_top = 0#9#3
-            self.conv3_top = 0#27#3
-            self.conv2_top = 0
-        else:
-            self.conv5_top = 0#3#0#3#3
-            self.conv4_top = 9#3#9#3
-            self.conv3_top = 18#3#27#3
-            self.conv2_top = 0
 
-        self.thres_conv5_test = 0# 15#20
-        self.thres_conv4_test = 0#2#5# 3#2
-        self.thres_conv3_test = 0#0.2#0.2# 0.1#0.2
+        self.thres_conv5_test = 0
+        self.thres_conv4_test = 0
+        self.thres_conv3_test = 0
         self.thres_conv2_test = 0
 
+        # use segmented point cloud
         self.pointcloud = 'seg' # seg
+        # use masked forward pass
         self.mask = 'mask'
+        # evaluate on the same case or all
         self.evaluate = 'case' # 'full' #
         # how is the grasp point determined from a distribution
-        self.dist_to_grasp_point = "mean"#"weightmean" #"densepoint" #"filterweightmean"#"densepoint" #"density" # #
+        self.dist_to_grasp_point = "mean"#"weightmean" #"densepoint" #"filterweightmean"#"densepoint" #"density"
+        # whether restrict to the same parent when filtering
         self.filter_same_parent = False
-
+        # whether filter out high variance features, number of features kept, -1 if no filtering
         self.filter_low_n = -1
         self.tbp_test_str = ""
         self.tbp_test = True
 
 
-        case = 20
+
         # comparing 5 different cases with and without targeted backpropagation
+        # note the following may overwrite settings above
         if case == 1 or case == 5:
             self.tbp = True
             self.tbp_str = 'tbp'
@@ -166,9 +148,9 @@ class DataSettings:
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = False
             self.filter_low_n = 15
-        # This is for just getting features from an input
+        # This is for getting features from input and pose test
         elif case == 20:
-            self.conv5_top = 20
+            self.conv5_top = 30
             self.conv4_top = 5
             self.conv3_top = 0
             self.conv2_top = 0
@@ -195,7 +177,7 @@ class DataSettings:
         return name
 
     def get_pose_state_test_name(self):
-        name = self.cnn_pose_state + "_" + self.cnn_pose_state_match + "_" + self.similarity + "_case9"
+        name = self.cnn_pose_state + "_" + self.cnn_pose_state_match + "_" + self.similarity
         return name
 
     def get_test_name(self):

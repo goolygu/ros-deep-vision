@@ -18,11 +18,14 @@ class InputManager:
         self.input_dims = input_dims
         self.frame_x = 480
         self.frame_y = 640
-        self.min_box = 50#100#300
+        self.min_box_w = 300#50#100#300
         # self.set_box([200,460,180,440], 0)
         self.set_width(self.ds.input_width)
         self.point_cloud_shape = (480,640)
         self.visualize = False
+
+    def set_min_box_width(self, min_box_w):
+        sel.f.min_box_w = min_box_w
 
     def set_width(self, width):
         self.set_box([200,200+width,180,180+width], 0)
@@ -76,11 +79,11 @@ class InputManager:
         min_y = min_y_orig - self.margin
         max_y = min_y_orig + self.width + self.margin
 
-        if (max_x - min_x) < self.min_box:
-            min_x -= (self.min_box - (max_x - min_x))/2
-            max_x += (self.min_box - (max_x - min_x))/2
-            min_y -= (self.min_box - (max_y - min_y))/2
-            max_y += (self.min_box - (max_y - min_y))/2
+        if (max_x - min_x) < self.min_box_w:
+            min_x -= (self.min_box_w - (max_x - min_x))/2
+            max_x += (self.min_box_w - (max_x - min_x))/2
+            min_y -= (self.min_box_w - (max_y - min_y))/2
+            max_y += (self.min_box_w - (max_y - min_y))/2
 
         # consider corner conditions
         if max_x > self.frame_x:
@@ -148,7 +151,7 @@ class InputManager:
             center = self.get_mask_center(mask)
             self.set_center(center)
 
-        print "crop", self.min_max_box
+        # print "crop", self.min_max_box
 
         mask = self.crop(mask)
         mask = cv2.resize(mask, self.input_dims)

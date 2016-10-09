@@ -45,6 +45,8 @@ from input_manager import *
 
 from visualizer import *
 
+import dataset_list as dl
+
 class DataMonster:
 
     def __init__(self, settings, data_settings):
@@ -99,8 +101,6 @@ class DataMonster:
         self.visualize = True
         self.show_backprop = True
         self.input_manager = InputManager(self.ds, self.input_dims)
-        # self.input_manager.set_width(self.ds.input_width)
-        # self.point_cloud_shape = (480,640)
 
     def set_frame(self, frame):
         self.visualizer.set_frame(frame)
@@ -108,8 +108,6 @@ class DataMonster:
     def set_box(self, min_max_box, margin_ratio):
         self.input_manager.set_box(min_max_box, margin_ratio)
 
-    # def set_path(self, path):
-    #     self.path = path
 
     def set_train_path(self, path):
         self.train_path = path
@@ -138,7 +136,7 @@ class DataMonster:
         print "consistent filter conv5", filter_idx_list_conv5
 
         # distribution.set_tree_list([],filter_idx_list_conv5)
-        # handle conv 4 filters
+        # for each consistent conv-5 filter look for top N conv-4 filters
         for filter_idx_5 in filter_idx_list_conv5:
 
             print "handling filter", filter_idx_5, "layer conv5"
@@ -467,6 +465,7 @@ class DataMonster:
         else:
             return self.filter_distribution_variance(dist, low_n)
 
+    # filter out high variance features
     def filter_distribution_variance(self,dist, low_n):
         new_dist = Distribution()
 
@@ -503,6 +502,7 @@ class DataMonster:
         # new_dist.filter_tree = dist.filter_tree
         return new_dist
 
+    # find low variance features that has the same parent filter
     def filter_distribution_same_parent(self, dist, low_n):
 
         data_dict = dist.data_dict
@@ -589,7 +589,6 @@ class DataMonster:
                 # print type(dist_cf[sig][frame])
                 # remove nan
                 dist = dist_cf[sig][frame]
-                print "shape", np.array(dist).shape
                 nan_mask = np.any(np.isnan(dist), axis=1)
                 dist = dist[~nan_mask]
                 if self.ds.dist_to_grasp_point == "weightmean" or self.ds.dist_to_grasp_point == "weightdensepoint":
@@ -636,10 +635,7 @@ class DataMonster:
         for j, frame in enumerate(frame_list):
             distribution.set(parent_filters + [filter_idx], frame, rel_pos_list[j,:,:])
         distribution.set_tree(parent_filters, filter_idx)
-    # def set_distribution(self, distribution, frame_list, filter_idx_list, dist_list, parent_filters):
-    #     for j, frame in enumerate(frame_list):
-    #         for i, filter_idx in enumerate(filter_idx_list):
-    #             distribution.set(parent_filters + [filter_idx], frame, dist_list[j,i,:,:])
+
 
     def show_distribution(self, dist_cf):
         color_map = {}
@@ -678,7 +674,6 @@ class DataMonster:
                 if sig in filter_xyz_dict:
                     dist_cf[sig][frame] =  np.array(dist_cf[sig][frame]) + np.array(filter_xyz_dict[sig])
                     # dist_cf[sig][frame] += filter_xyz_dict[sig]
-                    print np.array(dist_cf[sig][frame]).shape
                 else:
                     if sig in dist_cf:
                         dist_cf.pop(sig)
@@ -962,7 +957,7 @@ class DataMonster:
         img = img.transpose((1,2,0))
         img = norm01c(img, 0)
         img_size = layer_data[0].shape[1]
-        # image_size_orig = self.input_manager.get_after_crop_size()
+
         resize_ratio = float(pc.shape[0]) / float(img_size)
 
         for x in range(0, img_size):
@@ -1251,18 +1246,15 @@ class DataMonster:
 
         data_blob = self.net.transformer.preprocess('data', img)                # e.g. (3, 227, 227), mean subtracted and scaled to [0,255]
         data_blob = data_blob[np.newaxis,:,:,:]                   # e.g. (1, 3, 227, 227)
-        # print "mask", mask.shape
-        # cv2.imshow("blob", np.swapaxes(data_blob[0],0,2))
-        # cv2.waitKey(200)
-        # self.mask_out(data_blob, mask)
-        # cv2.imshow("blobmasked", data_blob[0])
-        # cv2.waitKey(200)
+
         mode = 2
+        # only mask out conv1
         if mode == 0:
             self.net.blobs['data'].data[...] = data_blob
             self.net.forward_from_to(start='conv1',end='relu1')
             self.mask_out(self.net.blobs['conv1'].data, mask)
             self.net.forward_from_to(start='relu1',end='prob')
+        # mask out all conv layers
         elif mode == 1:
             self.net.blobs['data'].data[...] = data_blob
             self.net.forward_from_to(start='conv1',end='relu1')
@@ -1283,7 +1275,8 @@ class DataMonster:
 
             self.net.forward_from_to(start='conv5',end='relu5')
             self.mask_out(self.net.blobs['conv5'].data, mask)
-            self.net.forward_from_to(start='relu5',end='prob')
+            self.net.forward_from_to(start='relu5',end='pool5')
+        # mask out all conv layers, identical to mode 1
         elif mode == 2:
             for idx in range(len(self.available_layer)-1):
                 output = self.net.forward(data=data_blob,start=self.available_layer[idx],end=self.available_layer[idx+1])
@@ -1374,6 +1367,7 @@ class DataMonster:
 
         return avg.tolist()
 
+    # show point cloud in rviz, input server needs to be running
     def show_point_cloud(self, name):
         rospy.wait_for_service('show_point_cloud')
         try:
@@ -1396,15 +1390,6 @@ class DataMonster:
         # p.from_array(new_a.astype(float))
         new_p.to_file(path + '/distribution/' + name + '_new.pcd')
         return p
-
-    def get_xyz_from_point_cloud(self, path, name, max_idx_list):
-        p = pcl.PointCloud()
-        p.from_file(path + name + ".pcd")
-        a = np.asarray(p)
-        return a[max_idx_list]
-        # print "pc shape", a.shape
-        # for idx in max_idx_list:#range(1,len(a),30):#
-        #     print a[idx]
 
     def mask_out(self, data, mask):
         # print "data shape", data.shape
@@ -1492,8 +1477,6 @@ class DataMonster:
         layer_diff = copy.deepcopy(layer_diff)
         img_src = copy.deepcopy(img_src)
 
-
-
         return layer_diff, img_src
 
     # binaraizes such that output is a 1-d array where each entry is whether a filter fires, also ouputs the max value
@@ -1508,56 +1491,24 @@ class DataMonster:
             max_data[id] = max(0.,max_value)
         return bin_data, max_data
 
-    def average(self, data):
-        # print data.shape
-        bin_data = np.zeros(data.shape[0])
-        for id, filter in enumerate(data):
-            sum_value = np.sum(filter)
-            bin_data[id] = sum_value / (data.shape[1]*data.shape[2])
-
-        return bin_data
-
 if __name__ == '__main__':
     rospy.init_node('data_monster', anonymous=True)
 
-    # tbp = False#True#
     ds = DataSettings()
-    # ds.tbp = tbp
     tbp = ds.tbp
     data_monster = DataMonster(settings, ds)
-    # path = settings.ros_dir + '/data/'
-    if ds.dataset == "set1":
-        import data_list_set1 as dl
-    elif ds.dataset == "set2":
-        import data_list_set2 as dl
-    elif ds.dataset == "set3":
-        import data_list_set3 as dl
-    elif ds.dataset == "set4":
-        import data_list_set4 as dl
-    elif ds.dataset == "set5":
-        import data_list_set5 as dl
-    elif ds.dataset == "set6":
-        import data_list_set6 as dl
-    elif ds.dataset == "set7":
-        import data_list_set7 as dl
 
     train_path = settings.ros_dir + '/data/' + ds.dataset + "/"
-    # data_monster.set_path(path)
+
     data_monster.set_train_path(train_path)
-    mode = 1
+    mode = 4
 
     dist_path = settings.ros_dir + '/distribution/'
 
-    # naming convention layer-palm or finger, xxx filter each layer, self or auto picked filters,
-    # max or avg xy position, back prop single or all, seg_point_cloud or full, number_train, deconv or grad,
-    # filter cm deviation, average width on point cloud, threshold, find max filter or most above threhold
-    # name = '(4-p-3-f)_(3-5-7)_auto_max_all_seg_103_g_bxy_5_(30-5-0.2)_above'
     name = ds.get_name()
     # train
     if mode == 0:
-        # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_sin_seg_42_g_bxy_10_(20-3-0.5)_of'
         dist_dic = data_monster.train_each_case(tbp)
-
         for case in dist_dic:
             dist_dic[case].save(dist_path, "[" + case + "]" + name)
     # test
@@ -1566,10 +1517,8 @@ if __name__ == '__main__':
         distribution = Distribution()
         case1 = '[side_wrap:cylinder]'
         case2 = '[side_wrap:cuboid]'
-        # name = '(4-p-3-f)_(1-2-[9-10])_auto_avg_all_seg_42_g_bxy_10_(20-10-2)_of_f3'
         distribution.load(dist_path + '/cross_validation/', case1 + '[leave_yellowjar]' + name)
 
-        # distribution.load(dist_path, case2 + name)
         distribution = data_monster.filter_distribution(distribution, ds.filter_low_n)
 
         data_monster.input_manager.set_visualize(True)
@@ -1592,7 +1541,7 @@ if __name__ == '__main__':
     # cross validation
     elif mode == 4:
 
-        retrain = False#True#
+        retrain = True#False#
         data_monster.cross_validation(settings.ros_dir, name, retrain, tbp)
 
     # merge
@@ -1608,6 +1557,7 @@ if __name__ == '__main__':
         dist1.merge(dist2)
         dist1.save(dist_path, case1 + case2 + name)
 
+    # test cluttered scenario
     elif mode == 7:
         data_monster.visualize = False#True
         data_monster.show_backprop = False

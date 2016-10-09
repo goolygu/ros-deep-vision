@@ -32,6 +32,8 @@ class CNNStateManager:
         camera_frame = rospy.get_param('~camera_frame') # kinect_optical_frame for ubot
         print "camera_frame", camera_frame
         self.data_monster.set_frame(camera_frame)
+        # set a lower minimum box width to handle objects further away
+        self.data_monster.input_manager.set_min_box_width(50)
 
     def capture_input(self):
 

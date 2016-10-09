@@ -46,7 +46,7 @@ class PoseTest:
 
         self.mode = "nomerge"#"merge"#
 
-        if case == 2 or self.mode == 'merge':
+        if case == 2 or case == 0 or self.mode == 'merge':
             self.data_monster = DataMonster(settings, ds)
             self.data_monster.visualize = True
             self.data_monster.show_backprop = False
@@ -330,7 +330,7 @@ class PoseTest:
         # return
         print "start testing"
         # test
-        for cat_name in test_dic.keys()[0:15:1]:
+        for cat_name in test_dic.keys()[0::1]:
             print cat_name
             result_cat = Result()
             # result_file_cat_name = "result_" + self.mode + "_" + cat_name
@@ -439,8 +439,8 @@ class PoseTest:
 
 if __name__ == '__main__':
 
-    ds = DataSettings()
-    case = 1
+    ds = DataSettings(20)
+    case = 0
     name = ds.get_pose_state_name()
 
     state_path = "/home/lku/Workspace/WRGBD_Test/" + name + "/"
@@ -449,7 +449,10 @@ if __name__ == '__main__':
         os.makedirs(state_path)
 
     pose_test = PoseTest("/home/lku/Dataset/rgbd-dataset/",state_path, ds, case)
-    if case == 1:
+    if case == 0:
+        pose_test.build_states()
+        pose_test.test()
+    elif case == 1:
         pose_test.test()
     elif case == 2:
         pose_test.build_states()
