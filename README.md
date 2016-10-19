@@ -51,16 +51,17 @@ If you are not using cudnn, both versions should work.
 
 ### Step 2: Install required python libraries if haven't
 
-$ sudo apt-get install python-opencv
+    $ sudo apt-get install python-opencv
 
 Install [pip](https://pip.pypa.io/en/stable/installing/) if haven't.
 
-$ sudo pip install scipy
-$ sudo pip install scikit-learn
-$ sudo pip install scikit-image
+    $ sudo pip install scipy
+    $ sudo pip install scikit-learn
+    $ sudo pip install scikit-image
 
 Download [python-pcl](https://github.com/strawlab/python-pcl) and install from local directory.
-$ sudo pip install -e ./python-pcl/
+    
+    $ sudo pip install -e ./python-pcl/
 
 ### Step 3: Download and configure ros-deep-vision package
 
@@ -78,7 +79,7 @@ Download the example model weights and corresponding top-9 visualizations made b
 
 ### step 5: Install required ros packages if haven't
 
-$ sudo apt-get install ros-{rosversion}-openni2-launch
+    $ sudo apt-get install ros-{rosversion}-openni2-launch
 
 I would recommend modifying the depth registration option in "openni2_launch/launch/openni2.launch" if the point cloud color has an offset and your hardware supports.
 <arg name="depth_registration" default="true" />
