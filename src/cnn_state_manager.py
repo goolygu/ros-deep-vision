@@ -16,7 +16,8 @@ import time
 class CNNStateManager:
     def __init__(self, settings):
         rospy.init_node('cnn_state_manager', anonymous=True)
-        ds = DataSettings()
+        ds = DataSettings(case="cnn_features")
+        ds.mask_centering = False
         self.tbp = ds.tbp
 
         self.data_monster = DataMonster(settings, ds)

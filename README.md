@@ -1,87 +1,107 @@
-# Deep Visualization Toolbox Installation
+# ROS Deep Vision package
 
+This is a ROS package that generates hierarchical CNN features and their locations based on RGB-D inputs. Hierarchcial CNN features represent meaningful properties of object parts and can be localized to support manipulation. Read the arXiv paper [Associating Grasping with Convolutional Neural Network Features](https://arxiv.org/abs/1609.03947) for more details. This repository is originally forked from the Deep Visualization Toolbox made by Yosinski which I found extremely useful in understanding CNNs. 
 
+## Assumptions
 
-### Step 0: Compile master branch of caffe (optional)
+This current version assumes objects are placed on the ground or table top in order to crop the image into square images centered on objects as CNN inputs.
 
-Get the master branch of [Caffe](http://caffe.berkeleyvision.org/) to compile on your
-machine. If you've never used Caffe before, it can take a bit of time to get all the required libraries in place. Fortunately, the [installation process is well documented](http://caffe.berkeleyvision.org/installation.html). When you're installing OpenCV, install the Python bindings as well (see Step 2 below).
+## Installation
 
-Note: You can set `CPU_ONLY := 1` in your `Makefile.config` to skip all the Cuda/GPU stuff. The Deep Visualization Toolbox can run with Caffe in either CPU or GPU mode.
+This package requires a specific branch of caffe and several different libraries listed below. This guide also assumes ROS (Version >= hydro) is already installed.
 
+### Step 0: Install caffe
 
+Get the master branch of [caffe](http://caffe.berkeleyvision.org/) to compile on your machine. If you've never used Caffe before, it can take a bit of time to get all the required libraries in place. Fortunately, the [installation process is well documented](http://caffe.berkeleyvision.org/installation.html).
 
-### Step 1: Compile the deconv-deep-vis-toolbox branch of caffe
+In addition to running on GPU with CUDA it is highly recommended to install the cudnn library to speed up the computation. 
+Remember to set USE_CUDNN := 1 in Caffe's Makefile.config before compiling if cudnn is installed.
 
-Instead of using the master branch of caffe, to use the demo
-you'll need a slightly modified branch (supporting deconv and a few
-extra Python bindings). Getting the branch and switching to it is easy.
-Starting from your caffe directory, run:
+After installing CUDA adn caffe make sure that the following environment variables are set correctly:
 
-    $ git remote add yosinski https://github.com/yosinski/caffe.git
+export PATH=/usr/local/cuda-7.0/bin:$PATH
+export LD\_LIBRARY\_PATH=/usr/local/cuda-7.0/lib64:$LD\_LIBRARY\_PATH
+export PYTHONPATH=$PYTHONPATH:{PATH}/caffe/python
+
+### Step 1: Compile the ros branch of caffe
+
+Instead of using the master branch of caffe, to use the package
+you'll need a slightly modified branch. Getting the branch and switching to it is easy.
+
+If you are using cudnn version 5 than starting from your caffe directory, run:
+
+    $ git remote add goolygu https://github.com/goolygu/caffe.git
     $ git fetch --all
-    $ git checkout --track -b deconv-deep-vis-toolbox yosinski/deconv-deep-vis-toolbox
+    $ git checkout --track -b ros-cudnn5 goolygu/ros-cudnn5
     $ make clean
     $ make -j
     $ make -j pycaffe
 
-As noted above, feel free to compile in `CPU_ONLY` mode if desired.
+If you are using cudnn version 4 than starting from your caffe directory, run:
+
+    $ git remote add goolygu https://github.com/goolygu/caffe.git
+    $ git fetch --all
+    $ git checkout --track -b ros goolygu/ros
+    $ make clean
+    $ make -j
+    $ make -j pycaffe
+
+If you are not using cudnn, both versions should work.
 
 
+### Step 2: Install required python libraries if haven't
 
-### Step 2: Install python-opencv
+$ sudo apt-get install python-opencv
 
-You may have already installed the `python-opencv` bindings as part of the Caffe setup process. If `import cv2` works from Python, then you're all set. If not, install the bindings like this:
+Install [pip](https://pip.pypa.io/en/stable/installing/) if haven't.
 
-Linux:
+$ sudo pip install scipy
+$ sudo pip install scikit-learn
+$ sudo pip install scikit-image
 
-    $ sudo apt-get install python-opencv
+Download [python-pcl](https://github.com/strawlab/python-pcl) and install from local directory.
+$ sudo pip install -e ./python-pcl/
 
-Mac using [homebrew](http://brew.sh/) (if desired, add option `--with-tbb` to enable parallel code using Intel TBB):
+### Step 3: Download and configure ros-deep-vision package
 
-    $ brew install opencv
+Download the package and place it along with other ROS packages in the catkin workspace.
 
-Other install options on Mac may also work well.
+    $ git clone https://github.com/goolygu/ros-deep-vision
+    $ roscd ros-deep-vision
 
+modify `./src/settings.py` so the `caffevis_caffe_root` variable points to the directory where you've compiled caffe in Step 1:
 
-
-### Step 3: Download and configure Deep Visualization Toolbox code
-
-You can put it wherever you like:
-
-    $ git clone https://github.com/yosinski/deep-visualization-toolbox
-    $ cd deep_visualization_toolbox
-
-Copy `settings.py.template` to `settings.py` and edit it so the `caffevis_caffe_root` variable points to the directory where you've compiled caffe in Step 1:
-
-    $ cp settings.py.template settings.py
-    $ < edit settings.py >
-
-Download the example model weights and corresponding top-9 visualizations saved as jpg (downloads a 230MB model and 1.1GB of jpgs to show as visualization):
+Download the example model weights and corresponding top-9 visualizations made by Yosinski (downloads a 230MB model and 1.1GB of jpgs to show as visualization):
 
     $ cd models/caffenet-yos/
     $ ./fetch.sh
 
+### step 5: Install required ros packages if haven't
+
+$ sudo apt-get install ros-{rosversion}-openni2-launch
+
+I would recommend modifying the depth registration option in "openni2_launch/launch/openni2.launch" if the point cloud color has an offset and your hardware supports.
+<arg name="depth_registration" default="true" />
+
+### Step 4: Run the package
+
+Make sure your rgbd camera is connected.
+Start the rgbd camera
+$ roslaunch openni2_launch openni2.launch
+
+Start the input server that does point cloud segmentation 
+$ roslaunch ros\_deep\_vision input\_server.launch
+
+Start rviz
+$ roslaunch ros\_deep\_vision rviz.launch
+
+Start the cnn state manager that generates the features
+$ roslaunch ros\_deep\_vision cnn\_state_manager.launch
+
+Press enter r in the cnn\_state_manager to run.
+The detected features should show up in rviz when finished running.
 
 
-### Step 4: Run it!
-
-Simple:
-
-    $ ./run_toolbox.py
-
-Once the toolbox is running, push 'h' to show a help screen. You can also have a look at `bindings.py` to see what the various keys do. If the window is too large or too small for your screen, set the `global_scale` variable in `settings.py` to a value smaller or larger than one.
-
-Run test:
-    $ ./test_match.py > result.txt
-compare to ground_truth.txt
 
 
-# Troubleshooting
 
-If you have any problems running the Deep Vis Toolbox, here are a few things to try:
-
- * Try using the `dev` branch instead (`git checkout dev`). Sometimes it's a little more up to date than the master branch.
- * If you get an error (`AttributeError: 'Classifier' object has no attribute 'backward_from_layer'`) when switching to backprop or deconv modes, it's because your compiled branch of Caffe does not have the necessary Python bindings for backprop/deconv. Follow the directions in "Step 1: Compile the deconv-deep-vis-toolbox branch of caffe" above.
- * If the backprop pane in the lower left is just gray, it's probably because backprop and deconv are producing all zeros. By default, Caffe won't compute derivatives at the data layer, because they're not needed to update parameters. The fix is simple: just add "force_backward: true" to your network prototxt, [like this](https://github.com/yosinski/deep-visualization-toolbox/blob/master/models/caffenet-yos/caffenet-yos-deploy.prototxt#L7).
- * If none of that helps, feel free to [email me](http://yosinski.com/) or [submit an issue](https://github.com/yosinski/deep-visualization-toolbox/issues). I might have left out an important detail here or there :).

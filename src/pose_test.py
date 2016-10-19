@@ -439,7 +439,7 @@ class PoseTest:
 
 if __name__ == '__main__':
 
-    ds = DataSettings(20)
+    ds = DataSettings("pose_test")
     case = 0
     name = ds.get_pose_state_name()
 

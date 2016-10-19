@@ -2,7 +2,7 @@
 # This is the config file
 
 class DataSettings:
-    def __init__(self, case=1):
+    def __init__(self, case="tbp"):
 
         # backprop with gradient or deconvolution
         self.back_prop_mode = 'grad' # grad for gradient, deconv
@@ -18,15 +18,13 @@ class DataSettings:
         # whether to backprop all the way to the image to locate
         self.location_layer = "image" #"mid" #
 
-        # only backprop a single
+        # only backprop a single filter
         self.backprop_xy = 'sin' #'all' #
 
         # avg back prop to image and do avg, max does filter level max xyz
         # self.localize_layer = 'img' #'filter' #filter not functional
 
         self.top_filter = 'maxlog'#'above' #'max'
-
-        self.dataset = 'set7'
 
         self.input_width = 260
 
@@ -68,11 +66,9 @@ class DataSettings:
         self.tbp_test_str = ""
         self.tbp_test = True
 
-
-
         # comparing 5 different cases with and without targeted backpropagation
         # note the following may overwrite settings above
-        if case == 1 or case == 5:
+        if case == "tbp" or case == "notbp-test":
             self.tbp = True
             self.tbp_str = 'tbp'
             self.n_conv5_f = 5
@@ -90,11 +86,11 @@ class DataSettings:
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = True
             self.filter_low_n = 15
-            if case == 5:
+            if case == "notbp-test":
                 self.tbp_test = False
                 self.tbp_test_str = '_notbptest'
 
-        elif case == 2:
+        elif case == "single-conv5":
             self.tbp = True
             self.tbp_str = 'tbp'
             self.n_conv5_f = 5
@@ -105,14 +101,14 @@ class DataSettings:
             self.frame_list_conv3 = []
             self.frame_list_conv4 = []
             self.frame_list_conv5 = ["r2/left_thumb_tip","r2/left_index_tip","r2/left_palm"]
-            self.conv5_top = 1#0#3#3
-            self.conv4_top = 0#9#3
-            self.conv3_top = 0#27#3
+            self.conv5_top = 1
+            self.conv4_top = 0
+            self.conv3_top = 0
             self.conv2_top = 0
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = False
             self.filter_low_n = -1
-        elif case == 3:
+        elif case == "notbp-conv5":
             self.tbp = True
             self.tbp_str = 'tbp'
             self.n_conv5_f = 125
@@ -123,14 +119,14 @@ class DataSettings:
             self.frame_list_conv3 = []
             self.frame_list_conv4 = []
             self.frame_list_conv5 = ["r2/left_thumb_tip","r2/left_index_tip","r2/left_palm"]
-            self.conv5_top = 125#0#3#3
-            self.conv4_top = 0#9#3
-            self.conv3_top = 0#27#3
+            self.conv5_top = 125
+            self.conv4_top = 0
+            self.conv3_top = 0
             self.conv2_top = 0
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = False
             self.filter_low_n = 15
-        elif case == 4:
+        elif case == "notbp-train":
             self.tbp = False
             self.tbp_str = 'notbp'
             self.n_conv5_f = 0
@@ -141,20 +137,27 @@ class DataSettings:
             self.frame_list_conv3 = ["r2/left_thumb_tip","r2/left_index_tip"]
             self.frame_list_conv4 = ["r2/left_palm"]
             self.frame_list_conv5 = []
-            self.conv5_top = 0#0#3#3
-            self.conv4_top = 25#9#3
-            self.conv3_top = 125#27#3
+            self.conv5_top = 0
+            self.conv4_top = 25
+            self.conv3_top = 125
             self.conv2_top = 0
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = False
             self.filter_low_n = 15
         # This is for getting features from input and pose test
-        elif case == 20:
+        elif case == "pose_test":
             self.conv5_top = 30
             self.conv4_top = 5
             self.conv3_top = 0
             self.conv2_top = 0
-
+        # This is for getting features from input and pose test
+        elif case == "cnn_features":
+            self.conv5_top = 20
+            self.conv4_top = 5
+            self.conv3_top = 0
+            self.conv2_top = 0
+        else:
+            print "ERROR, no such case", case
 
         if self.filter_same_parent:
             self.filter_same_parent_str = "_sameparent"
@@ -164,7 +167,7 @@ class DataSettings:
     def get_name(self):
         name =  self.tbp_str + "_" + '(' + str(len(self.frame_list_conv5)) + '-' + str(len(self.frame_list_conv4)) + '-' + str(len(self.frame_list_conv3)) + '-' + str(len(self.frame_list_conv2)) + ')_(' + \
                 str(self.n_conv5_f) + '-' + str(self.n_conv4_f) + '-' + str(self.n_conv3_f) + '-' + str(self.n_conv2_f) + ')_' + \
-                self.backprop_xy + '_' + self.dataset + '_' + self.back_prop_mode + '_' + \
+                self.backprop_xy + '_' + self.back_prop_mode + '_' + \
                 str(self.avg_pointcloud_width) + '_(' + str(self.thres_conv5) + '-' + str(self.thres_conv4) + '-' + str(self.thres_conv3) + '-' + str(self.thres_conv2) + ')_' + \
                 self.top_filter + '_' + self.location_layer + "_" + str(self.input_width) + "_" + self.img_src_loc
 
@@ -173,7 +176,6 @@ class DataSettings:
     def get_pose_state_name(self):
         name = '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + '-' + str(self.conv2_top) + ')_' + "_" + self.filters + "_" + \
                 "_" + self.square + "_" + self.cloud_gap
-                #self.cnn_pose_state \
         return name
 
     def get_pose_state_test_name(self):

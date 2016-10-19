@@ -18,14 +18,14 @@ class InputManager:
         self.input_dims = input_dims
         self.frame_x = 480
         self.frame_y = 640
-        self.min_box_w = 300#50#100#300
+        self.min_box_w = 300
         # self.set_box([200,460,180,440], 0)
         self.set_width(self.ds.input_width)
         self.point_cloud_shape = (480,640)
         self.visualize = False
 
     def set_min_box_width(self, min_box_w):
-        sel.f.min_box_w = min_box_w
+        self.min_box_w = min_box_w
 
     def set_width(self, width):
         self.set_box([200,200+width,180,180+width], 0)
@@ -34,6 +34,7 @@ class InputManager:
         self.visualize = vis
 
     def set_center(self, center_xy):
+        # print "set_center", self.min_max_box
         curr_center = [0,0]
         curr_center[0] = (self.min_max_box[0] + self.min_max_box[1])/2
         curr_center[1] = (self.min_max_box[2] + self.min_max_box[3])/2
@@ -43,17 +44,23 @@ class InputManager:
 
         if self.min_max_box[0] + off_set[0] < 0:
             off_set[0] = 0 - self.min_max_box[0]
-        if self.min_max_box[1] + off_set[0] >= self.frame_x:
-            off_set[0] = self.frame_x -self.min_max_box[1]
+        elif self.min_max_box[1] + off_set[0] > self.frame_x:
+            off_set[0] = self.frame_x - self.min_max_box[1]
         if self.min_max_box[2] + off_set[1] < 0:
             off_set[1] = 0 - self.min_max_box[2]
-        if self.min_max_box[3] + off_set[1] >= self.frame_y:
-            off_set[1] = self.frame_y -self.min_max_box[3]
+        elif self.min_max_box[3] + off_set[1] > self.frame_y:
+            off_set[1] = self.frame_y - self.min_max_box[3]
 
         self.min_max_box[0] += off_set[0]
         self.min_max_box[1] += off_set[0]
         self.min_max_box[2] += off_set[1]
         self.min_max_box[3] += off_set[1]
+
+        # make sure within bound
+        self.min_max_box[0] = max(0,self.min_max_box[0])
+        self.min_max_box[1] = min(self.frame_x,self.min_max_box[1])
+        self.min_max_box[2] = max(0,self.min_max_box[2])
+        self.min_max_box[3] = min(self.frame_y,self.min_max_box[3])
 
     def set_box(self, min_max_box, margin_ratio):
         self.min_max_box_orig = min_max_box
@@ -64,16 +71,18 @@ class InputManager:
         self.width = max(max_x_orig-min_x_orig, max_y_orig-min_y_orig)
         self.margin = round(self.width * margin_ratio)
         if self.width + 2*self.margin > self.frame_x:
-            self.margin = int((self.frame_x - self.width)/2.0)
+            self.margin = int(math.floor((self.frame_x - self.width)/2.0))
 
         if self.margin < 0:
             center_y = (min_y_orig + max_y_orig)/2
             min_x = 0
-            max_x = self.frame_x - 1
+            max_x = self.frame_x
             min_y = center_y - self.frame_x/2
             max_y = center_y + self.frame_x/2
             self.min_max_box = [min_x, max_x, min_y, max_y]
+
             return
+
         min_x = min_x_orig - self.margin
         max_x = min_x_orig + self.width + self.margin
         min_y = min_y_orig - self.margin
@@ -105,7 +114,6 @@ class InputManager:
             min_y = 0
 
         self.min_max_box = [min_x, max_x, min_y, max_y]
-        # print "min max box", min_max_box
 
     def crop(self, frame):
         min_x = self.min_max_box[0]
@@ -266,13 +274,11 @@ class InputManager:
 
         data_file_list = sorted(data_file_list)
         # print data_file_list
-        # data_dict = {}
         name_list = []
         for data_file in data_file_list:
             f = open(path+data_file)
             data = yaml.load(f)
             name_list.append(data.name)
-            # data_dict[data.name] = data
         return name_list
 
     def get_mask_center(self, mask):
@@ -286,8 +292,11 @@ class InputManager:
 
 if __name__ == '__main__':
     print "test"
-    input_manager = InputManager(None,None)
+    from data_settings import DataSettings
+    ds = DataSettings()
+    input_manager = InputManager(ds,None)
     input_manager.set_width(260)
     input_manager.set_box([68,312,221,394],0.5)
+    print input_manager.min_max_box
     input_manager.set_center([187,306])
     print input_manager.min_max_box
