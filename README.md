@@ -87,16 +87,20 @@ I would recommend modifying the depth registration option in "openni2_launch/lau
 
 Make sure your rgbd camera is connected.
 Start the rgbd camera
-$ roslaunch openni2_launch openni2.launch
+
+    $ roslaunch openni2_launch openni2.launch
 
 Start the input server that does point cloud segmentation 
-$ roslaunch ros\_deep\_vision input\_server.launch
+
+    $ roslaunch ros\_deep\_vision input\_server.launch
 
 Start rviz
-$ roslaunch ros\_deep\_vision rviz.launch
+
+    $ roslaunch ros\_deep\_vision rviz.launch
 
 Start the cnn state manager that generates the features
-$ roslaunch ros\_deep\_vision cnn\_state_manager.launch
+
+    $ roslaunch ros\_deep\_vision cnn\_state_manager.launch
 
 Press enter r in the cnn\_state_manager to run.
 The detected features should show up in rviz when finished running.
