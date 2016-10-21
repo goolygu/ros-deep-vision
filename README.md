@@ -77,11 +77,11 @@ Download the example model weights and corresponding top-9 visualizations made b
     $ cd models/caffenet-yos/
     $ ./fetch.sh
 
-### step 5: Install required ros packages if haven't
+### Step 5: Install required ros packages if haven't
 
     $ sudo apt-get install ros-{rosversion}-openni2-launch
 
-I would recommend modifying the depth registration option in "openni2_launch/launch/openni2.launch" if the point cloud color has an offset and your hardware supports.
+I would recommend modifying the depth registration option in "openni2_launch/launch/openni2.launch" if the point cloud color has an offset and your hardware supports depth registration.
 <arg name="depth_registration" default="true" />
 
 ### Step 4: Run the package
@@ -105,9 +105,19 @@ Start the cnn state manager that generates the features
     $ roslaunch ros_deep_vision cnn_state_manager.launch
 
 Press enter r in the cnn\_state_manager to run.
-The detected features should show up in rviz when finished running.
+The detected features should show up in rviz similar to the following image when finished running. The yellow, cyan, and magenta dots represent conv-5, conv-4, and conv-3 hierarchical CNN features. 
+Set ```self.max_clusters = 3``` in ```cnn_state_manager.py``` to a higher number if more than 3 objects are in the scene.
+![alt tag](https://github.com/goolygu/ros-deep-vision/blob/master/doc/rviz_feature_visualization.png?raw=true)
 
+Set ```self.data_monster.show_backprop = True``` in ```cnn_state_manager.py``` if you want to visualize the targeted backpropagation result for each hierarchical CNN feature like in the image below. The blue dots are the feature locations based on the average response locations. Note that this may generate a bunch of image windows, set ```self.max_clusters = 1``` so that it only handles the largest object.  You can also change the following settings: 
+```python
+elif case == "cnn_features":
+    self.conv5_top = 10
+    self.conv4_top = 5
+    self.conv3_top = 2
+    self.conv2_top = 0
+```
+in ```data_settings.py``` to modify the number of features extracted. Note that in this case there will be 10 conv5, 50 conv4, and 100 conv3 hierarchical CNN features.
 
-
-
+![alt tag](https://github.com/goolygu/ros-deep-vision/blob/master/doc/backprop.png?raw=true)
 
