@@ -2,6 +2,10 @@
 
 This is a ROS package that generates hierarchical CNN features and their locations based on RGB-D inputs. Hierarchcial CNN features represent meaningful properties of object parts and can be localized to support manipulation. Read the arXiv paper [Associating Grasping with Convolutional Neural Network Features](https://arxiv.org/abs/1609.03947) for more details. This repository is originally forked from the Deep Visualization Toolbox made by Yosinski which I found extremely useful in understanding CNNs. 
 
+<p align="center">
+  <img src="https://github.com/goolygu/ros-deep-vision/blob/master/doc/cnn_archi.png?raw=true" width="350"/>
+</p>
+
 ## Assumptions
 
 This current version assumes objects are placed on the ground or table top in order to crop the image into square images centered on objects as CNN inputs. Only the top N largest clusters are handled. This package is setup to handle RGB-D camera inputs with resolution 640x480 such as the Kinect and Asus xtion.
@@ -120,4 +124,5 @@ elif case == "cnn_features":
 in ```data_settings.py``` to modify the number of features extracted. Note that in this case there will be 10 conv5, 50 conv4, and 100 conv3 hierarchical CNN features.
 
 ![alt tag](https://github.com/goolygu/ros-deep-vision/blob/master/doc/backprop.png?raw=true)
+
 
