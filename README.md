@@ -4,7 +4,7 @@ This is a ROS package that generates hierarchical CNN features and their locatio
 
 ## Assumptions
 
-This current version assumes objects are placed on the ground or table top in order to crop the image into square images centered on objects as CNN inputs.
+This current version assumes objects are placed on the ground or table top in order to crop the image into square images centered on objects as CNN inputs. Only the top N largest clusters are handled. This package is setup to handle RGB-D camera inputs with resolution 640x480 such as the Kinect and Asus xtion.
 
 ## Installation
 
@@ -17,7 +17,7 @@ Get the master branch of [caffe](http://caffe.berkeleyvision.org/) to compile on
 In addition to running on GPU with CUDA it is highly recommended to install the cudnn library to speed up the computation. 
 Remember to set USE_CUDNN := 1 in Caffe's Makefile.config before compiling if cudnn is installed.
 
-After installing CUDA adn caffe make sure that the following environment variables are set correctly:
+After installing CUDA and caffe make sure that the following environment variables are set correctly:
 
 export PATH=/usr/local/cuda-7.0/bin:$PATH
 export LD\_LIBRARY\_PATH=/usr/local/cuda-7.0/lib64:$LD\_LIBRARY\_PATH
@@ -68,7 +68,7 @@ Download [python-pcl](https://github.com/strawlab/python-pcl) and install from l
 Download the package and place it along with other ROS packages in the catkin workspace.
 
     $ git clone https://github.com/goolygu/ros-deep-vision
-    $ roscd ros-deep-vision
+    $ roscd ros_deep_vision
 
 modify `./src/settings.py` so the `caffevis_caffe_root` variable points to the directory where you've compiled caffe in Step 1:
 
@@ -86,22 +86,23 @@ I would recommend modifying the depth registration option in "openni2_launch/lau
 
 ### Step 4: Run the package
 
-Make sure your rgbd camera is connected.
-Start the rgbd camera
+Make sure your RGB-D camera is connected.
+Start the RGB-D camera
 
     $ roslaunch openni2_launch openni2.launch
 
 Start the input server that does point cloud segmentation 
 
-    $ roslaunch ros\_deep\_vision input\_server.launch
+    $ roslaunch ros_deep_vision input_server.launch
 
 Start rviz
 
-    $ roslaunch ros\_deep\_vision rviz.launch
+    $ roslaunch ros_deep_vision rviz.launch
 
+You should be able to see the point cloud in rviz.
 Start the cnn state manager that generates the features
 
-    $ roslaunch ros\_deep\_vision cnn\_state_manager.launch
+    $ roslaunch ros_deep_vision cnn_state_manager.launch
 
 Press enter r in the cnn\_state_manager to run.
 The detected features should show up in rviz when finished running.
