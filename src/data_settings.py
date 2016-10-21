@@ -3,7 +3,8 @@
 
 class DataSettings:
     def __init__(self, case="tbp"):
-
+        self.tbp = True
+        self.tbp_str = 'tbp'
         # backprop with gradient or deconvolution
         self.back_prop_mode = 'grad' # grad for gradient, deconv
 
@@ -69,8 +70,7 @@ class DataSettings:
         # comparing 5 different cases with and without targeted backpropagation
         # note the following may overwrite settings above
         if case == "tbp" or case == "notbp-test":
-            self.tbp = True
-            self.tbp_str = 'tbp'
+
             self.n_conv5_f = 5
             self.n_conv4_f = 5
             self.n_conv3_f = 5
@@ -91,8 +91,7 @@ class DataSettings:
                 self.tbp_test_str = '_notbptest'
 
         elif case == "single-conv5":
-            self.tbp = True
-            self.tbp_str = 'tbp'
+
             self.n_conv5_f = 5
             self.n_conv4_f = 0
             self.n_conv3_f = 0
@@ -109,8 +108,7 @@ class DataSettings:
             self.filter_same_parent = False
             self.filter_low_n = -1
         elif case == "notbp-conv5":
-            self.tbp = True
-            self.tbp_str = 'tbp'
+
             self.n_conv5_f = 125
             self.n_conv4_f = 0
             self.n_conv3_f = 0
@@ -152,9 +150,9 @@ class DataSettings:
             self.conv2_top = 0
         # This is for getting features from input and pose test
         elif case == "cnn_features":
-            self.conv5_top = 20
+            self.conv5_top = 10
             self.conv4_top = 5
-            self.conv3_top = 0
+            self.conv3_top = 2
             self.conv2_top = 0
         else:
             print "ERROR, no such case", case

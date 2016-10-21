@@ -1,0 +1,6 @@
+<?xml version="1.0" ?>
+<launch>
+	<node pkg="ros_deep_vision" type="cnn_state_manager.py" name="cnn_state_manager" output="screen">
+		<param name="camera_frame" value="/r2/head/asus_depth_optical_frame"/>
+	</node>	
+</launch>

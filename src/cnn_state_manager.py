@@ -28,8 +28,8 @@ class CNNStateManager:
 
         self.data_collector = DataCollector(self.path + '/current/')
 
-        dist_name = ds.get_name()
         self.data_monster.show_backprop = False#True#
+        self.max_clusters = 3
         camera_frame = rospy.get_param('~camera_frame') # kinect_optical_frame for ubot
         print "camera_frame", camera_frame
         self.data_monster.set_frame(camera_frame)
@@ -70,8 +70,8 @@ class CNNStateManager:
         # load crop box
         box_min_max_list = self.get_box_list(save_data_name)
 
-        # taking care of the top n=3 largest blobs
-        box_min_max_list = box_min_max_list[0:min(3,len(box_min_max_list))]
+        # taking care of the top n largest blobs
+        box_min_max_list = box_min_max_list[0:min(self.max_clusters,len(box_min_max_list))]
 
         state_list_all = []
         pose_list_all = []
@@ -88,7 +88,7 @@ class CNNStateManager:
                 self.data_monster.input_manager.load_img_mask_pc(data, self.path + '/current/')
                 time.sleep(0.1)
 
-            cv2.imshow("img_"+item_name, data.img)
+            cv2.imshow("img_"+item_name, data.img[:,:,(2,1,0)])
             cv2.imshow("mask_"+item_name, data.mask)
             cv2.imwrite(self.path + '/current/' + data.name + "_" + item_name + "_rgb_crop.png", data.img[:, :, (2,1,0)])
             cv2.waitKey(100)
