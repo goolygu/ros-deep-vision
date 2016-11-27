@@ -2,7 +2,7 @@
 
 import os
 root_dir = os.path.dirname(os.path.abspath(__file__))
-ros_dir = os.path.dirname(root_dir)
+ros_dir = os.path.dirname(os.path.dirname(root_dir))
 
 # Set this to point to your compiled checkout of caffe
 caffevis_caffe_root      = '/home/lku/Workspace/caffe'
