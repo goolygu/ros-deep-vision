@@ -15,7 +15,6 @@ import time
 
 class CNNStateManager:
     def __init__(self, settings):
-        rospy.init_node('cnn_state_manager', anonymous=True)
         ds = DataSettings(case="cnn_features")
         ds.mask_centering = False
         self.tbp = ds.tbp
@@ -30,7 +29,7 @@ class CNNStateManager:
 
         self.data_monster.show_backprop = False#True#
         self.max_clusters = 3
-        camera_frame = rospy.get_param('~camera_frame') # kinect_optical_frame for ubot
+        camera_frame = rospy.get_param('~camera_frame') # kinect_optical_frame for ubot, /r2/head/asus_depth_optical_frame for r2
         print "camera_frame", camera_frame
         self.data_monster.set_frame(camera_frame)
         # set a lower minimum box width to handle objects further away
@@ -106,14 +105,15 @@ class CNNStateManager:
             self.data_monster.show_feature(filter_xyz_dict, item_name)
 
             state_list, pose_list = to_state_pose_list(value_dict, filter_xyz_dict)
-            state_list_all.append(state_list)
-            pose_list_all.append(pose_list)
+            state_list_all += state_list
+            pose_list_all += pose_list
 
         return state_list_all, pose_list_all
 
 
 
 if __name__ == '__main__':
+    rospy.init_node('cnn_state_manager', anonymous=True)
     cnn_state_manager = CNNStateManager(settings)
     while not rospy.is_shutdown():
         key = raw_input("enter r to run once, q to quit:\n")
