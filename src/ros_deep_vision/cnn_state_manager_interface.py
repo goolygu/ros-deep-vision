@@ -13,6 +13,7 @@ from data_settings import *
 from distribution import *
 import time
 from cnn_state_manager import *
+from umass_util import *
 
 class CNNStateManagerInterface:
     def __init__(self, settings):
@@ -28,10 +29,11 @@ class CNNStateManagerInterface:
 
         req = self.req
         if req.state_list[0].name == "None":
-            state_list, pose_list = self.cnn_state_manager.get_cnn_list_state(None)
+            value_dict, filter_xyz_dict = self.cnn_state_manager.get_cnn_list_state(None)
         else:
-            state_list, pose_list = self.cnn_state_manager.get_cnn_list_state(req.state_list)
+            value_dict, filter_xyz_dict = self.cnn_state_manager.get_cnn_list_state(req.state_list)
 
+        state_list, pose_list = to_state_pose_msg_list(value_dict, filter_xyz_dict)
         resp = GetListStateResponse()
 
         resp.state_list = tuple(state_list)
