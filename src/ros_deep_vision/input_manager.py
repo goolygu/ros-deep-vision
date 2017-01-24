@@ -19,13 +19,18 @@ class InputManager:
         self.frame_x = 480
         self.frame_y = 640
         self.min_box_w = 300
+        self.fix_margin = 0
         # self.set_box([200,460,180,440], 0)
         self.set_width(self.ds.input_width)
         self.point_cloud_shape = (480,640)
         self.visualize = False
 
+
     def set_min_box_width(self, min_box_w):
         self.min_box_w = min_box_w
+
+    def set_box_fix_margin(self, fix_margin):
+        self.fix_margin = fix_margin
 
     def set_width(self, width):
         self.set_box([200,200+width,180,180+width], 0)
@@ -88,6 +93,11 @@ class InputManager:
         min_y = min_y_orig - self.margin
         max_y = min_y_orig + self.width + self.margin
 
+        min_x -= self.fix_margin
+        max_x += self.fix_margin
+        min_y -= self.fix_margin
+        max_y += self.fix_margin
+
         if (max_x - min_x) < self.min_box_w:
             min_x -= (self.min_box_w - (max_x - min_x))/2
             max_x += (self.min_box_w - (max_x - min_x))/2
@@ -114,6 +124,7 @@ class InputManager:
             min_y = 0
 
         self.min_max_box = [min_x, max_x, min_y, max_y]
+        print "min max box modified", self.min_max_box
 
     def crop(self, frame):
         min_x = self.min_max_box[0]

@@ -90,6 +90,7 @@ class DataMonster:
             raw_scale = self._range_scale,
             #image_dims = (227,227),
         )
+
         self.input_dims = self.net.blobs['data'].data.shape[2:4]    # e.g. (227,227)
 
 
@@ -1106,6 +1107,13 @@ class DataMonster:
             max_list[filter_id] = np.amax(layer_response[filter_id])
 
         sorted_filter_idx_list = np.argsort(max_list)[::-1]
+
+        # only include when value greater then 0
+        for i, idx in enumerate(sorted_filter_idx_list[0:number]):
+            if max_list[idx] <= 0:
+                number = i
+                break
+
         sorted_filter_idx_list = sorted_filter_idx_list[0:number]
 
         return sorted_filter_idx_list.tolist()
@@ -1455,3 +1463,8 @@ class DataMonster:
                 bin_data[id] = 1
             max_data[id] = max(0.,max_value)
         return bin_data, max_data
+
+if __name__ == '__main__':
+
+    ds = DataSettings()
+    data_monster = DataMonster(settings, ds)

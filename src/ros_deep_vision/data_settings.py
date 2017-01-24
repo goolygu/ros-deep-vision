@@ -142,13 +142,13 @@ class DataSettings:
             self.dist_to_grasp_point = "weightmean"#"densepoint" #"weightdensepoint"#
             self.filter_same_parent = False
             self.filter_low_n = 15
-        # This is for getting features from input and pose test
+        # This is for pose test on the washinton dataset
         elif case == "pose_test":
             self.conv5_top = 30
             self.conv4_top = 5
             self.conv3_top = 0
             self.conv2_top = 0
-        # This is for getting features from input and pose test
+        # This is for manipulation experiments on R2
         elif case == "cnn_features":
             self.conv5_top = 10
             self.conv4_top = 5

@@ -34,7 +34,13 @@ class CNNStateManager:
         self.data_monster.set_frame(camera_frame)
         # set a lower minimum box width to handle objects further away
         self.data_monster.input_manager.set_min_box_width(50)
+        # the percentage of margin added to min max box
+        self.box_margin = 0.5
 
+    def set_box_param(self, min_box_width, box_margin, fix_margin):
+        self.box_margin = box_margin
+        self.data_monster.input_manager.set_min_box_width(min_box_width)
+        self.data_monster.input_manager.set_box_fix_margin(fix_margin)
     def capture_input(self):
 
         time_str = strftime("%d-%m-%Y-%H:%M:%S", time.gmtime())
@@ -82,12 +88,12 @@ class CNNStateManager:
 
         print "handle box", box_min_max
         item_name = "item"
-        self.data_monster.set_box(box_min_max, 0.5)
+        self.data_monster.set_box(box_min_max, self.box_margin)
         # load image, point cloud, distribution
         data = Data()
         data.name = save_data_name
         data.img, data.mask, data.pc = None, None ,None
-        while data.img is None or data.mask is None or data.pc is None:
+        while (not rospy.is_shutdown()) and (data.img is None or data.mask is None or data.pc is None):
             self.data_monster.input_manager.load_img_mask_pc(data, self.path + '/current/')
             time.sleep(0.1)
 
@@ -120,7 +126,7 @@ class CNNStateManager:
     def get_clustered_cnn_list_state(self,state_list):
         print "received grasp request"
 
-        save_data_name = self.capture_input()
+        save_data_name = self.capture_input()#"current_15-01-2017-20:38:40"#
         time.sleep(0.3)
         # load crop box
         box_min_max_list, centroid_list = self.get_box_list(save_data_name)
@@ -130,23 +136,27 @@ class CNNStateManager:
 
         value_dic_list = []
         xyz_dic_list = []
+        img_name_list = []
 
         for i, box_min_max in enumerate(box_min_max_list):
             print "handle box", box_min_max
             item_name = "item_"+str(i)
-            self.data_monster.set_box(box_min_max, 0.5)
+            self.data_monster.set_box(box_min_max, self.box_margin)
             # load image, point cloud, distribution
             data = Data()
             data.name = save_data_name
             data.img, data.mask, data.pc = None, None ,None
-            while data.img is None or data.mask is None or data.pc is None:
+            while (not rospy.is_shutdown()) and (data.img is None or data.mask is None or data.pc is None):
                 self.data_monster.input_manager.load_img_mask_pc(data, self.path + '/current/')
                 time.sleep(0.1)
 
             cv2.imshow("img_"+item_name, data.img[:,:,(2,1,0)])
             cv2.imshow("mask_"+item_name, data.mask)
-            cv2.imwrite(self.path + '/current/' + data.name + "_" + item_name + "_rgb_crop.png", data.img[:, :, (2,1,0)])
-            cv2.waitKey(100)
+            img_name = self.path + '/current/' + data.name + "_" + item_name + "_rgb_crop.png"
+            cv2.imwrite(img_name, data.img[:, :, (2,1,0)])
+            img_name_list.append(img_name)
+
+            cv2.waitKey(50)
 
             # generate grasp points
             if state_list == None:
@@ -166,7 +176,7 @@ class CNNStateManager:
             # clustered_state_list.append(state_list)
             # clustered_pose_list.append(pose_list)
 
-        return value_dic_list, xyz_dic_list, centroid_list
+        return value_dic_list, xyz_dic_list, centroid_list, img_name_list
 
 if __name__ == '__main__':
     rospy.init_node('cnn_state_manager', anonymous=True)
@@ -174,6 +184,7 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         key = raw_input("enter r to run once, q to quit:\n")
         if key == 'r':
+            # cnn_state_manager.set_box_param(200,0.,15)
             cnn_state_manager.get_clustered_cnn_list_state(None)
         elif key == 'q':
             break

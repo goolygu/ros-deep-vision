@@ -59,6 +59,8 @@ class DataCollector:
         self.lock = threading.Lock()
         self.path = path
 
+        # self.rgb_sub = rospy.Subscriber("/r2/head/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
+        # self.depth_sub = rospy.Subscriber("/r2/head/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
         self.rgb_sub = rospy.Subscriber("/asus/rgb/image_raw",Image,self.rgb_callback,queue_size=1)
         self.depth_sub = rospy.Subscriber("/asus/depth/image_raw",Image,self.depth_callback,queue_size=1)
 
