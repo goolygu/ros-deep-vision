@@ -18,7 +18,7 @@ from umass_atg.classes.condition import *
 class CNNConditionManagerInterface:
     def __init__(self, settings):
 
-        self.cnn_state_manager = CNNStateManager(settings)
+        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo")
         self.cnn_state_manager.set_box_param(200, 0, 15)
         s = rospy.Service('get_cnn_condition', GetCondition, self.handle_get_cnn_condition)
 
@@ -30,9 +30,10 @@ class CNNConditionManagerInterface:
 
         req = self.req
         if req.expected_condition.name == "None":
-            value_dic_list, xyz_dic_list, centroid_list, img_name_list = self.cnn_state_manager.get_clustered_cnn_list_state(None)
+            value_dic_list, xyz_dic_list, centroid_list, img_name_list = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)
         else:
-            print "not implemented yet"
+            value_dic_list, xyz_dic_list, centroid_list, img_name_list = \
+            self.cnn_state_manager.get_clustered_cnn_list_state(req.expected_condition.aspect_list[0].state_list, req.aspect_idx_list[0])
 
         resp = GetConditionResponse()
 

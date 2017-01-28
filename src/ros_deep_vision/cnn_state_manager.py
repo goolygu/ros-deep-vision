@@ -14,8 +14,8 @@ import time
 
 
 class CNNStateManager:
-    def __init__(self, settings):
-        ds = DataSettings(case="cnn_features")
+    def __init__(self, settings, data_setting_case = "cnn_features"):
+        ds = DataSettings(case=data_setting_case)
         ds.mask_centering = False
         self.tbp = ds.tbp
 
@@ -123,7 +123,7 @@ class CNNStateManager:
         # return state_list_all, pose_list_all
 
     # get list of hierarchical CNN features, state_list is the expected features, finds max N if set to None
-    def get_clustered_cnn_list_state(self,state_list):
+    def get_clustered_cnn_list_state(self,state_list,aspect_idx):
         print "received grasp request"
 
         save_data_name = self.capture_input()#"current_15-01-2017-20:38:40"#
@@ -134,13 +134,20 @@ class CNNStateManager:
         # taking care of the top n largest blobs
         box_min_max_list = box_min_max_list[0:min(self.max_clusters,len(box_min_max_list))]
 
+        if aspect_idx != None:
+            box_min_max_list = [box_min_max_list[aspect_idx]]
+            centroid_list = [centroid_list[aspect_idx]]
+
         value_dic_list = []
         xyz_dic_list = []
         img_name_list = []
 
         for i, box_min_max in enumerate(box_min_max_list):
             print "handle box", box_min_max
-            item_name = "item_"+str(i)
+            if aspect_idx == None:
+                item_name = "item_"+str(i)
+            else:
+                item_name = "focus_" + str(aspect_idx)
             self.data_monster.set_box(box_min_max, self.box_margin)
             # load image, point cloud, distribution
             data = Data()

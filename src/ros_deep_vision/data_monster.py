@@ -50,7 +50,8 @@ class DataMonster:
     def __init__(self, settings, data_settings):
         print 'initialize'
         self.settings = settings
-        self.ds = data_settings
+        # self.ds = data_settings
+
 
         self._data_mean = np.load(settings.caffevis_data_mean)
         # Crop center region (e.g. 227x227) if mean is larger (e.g. 256x256)
@@ -63,12 +64,12 @@ class DataMonster:
         self._net_channel_swap_inv = tuple([self._net_channel_swap.index(ii) for ii in range(len(self._net_channel_swap))])
         self._range_scale = 1.0      # not needed; image comes in [0,255]
         self.available_layer = ['conv1', 'pool1', 'norm1', 'conv2', 'pool2', 'norm2', 'conv3', 'conv4', 'conv5', 'pool5', 'fc6', 'fc7', 'fc8', 'prob']
-        self.threshold = {}
-        self.threshold['conv5'] = self.ds.thres_conv5
-        self.threshold['conv4'] = self.ds.thres_conv4
-        self.threshold['conv3'] = self.ds.thres_conv3
-        self.threshold['conv2'] = self.ds.thres_conv2
-        self.threshold['conv1'] = 0
+        # self.threshold = {}
+        # self.threshold['conv5'] = self.ds.thres_conv5
+        # self.threshold['conv4'] = self.ds.thres_conv4
+        # self.threshold['conv3'] = self.ds.thres_conv3
+        # self.threshold['conv2'] = self.ds.thres_conv2
+        # self.threshold['conv1'] = 0
         self.visualizer = Visualizer()
         self.visualizer.set_frame("/r2/head/asus_depth_optical_frame")
         self.visualizer.set_topics(['grasp_distribution', 'feature', "grasp_target"])
@@ -93,12 +94,27 @@ class DataMonster:
 
         self.input_dims = self.net.blobs['data'].data.shape[2:4]    # e.g. (227,227)
 
+        self.set_data_settings(data_settings)
+        # self.back_mode = self.ds.back_prop_mode
+        # w = self.ds.avg_pointcloud_width
+        # self.average_grid = np.mgrid[-w:w,-w:w]
+        self.visualize = True
+        self.show_backprop = True
+        # self.input_manager = InputManager(self.ds, self.input_dims)
+
+    def set_data_settings(self, data_settings):
+
+        self.ds = data_settings
+        self.threshold = {}
+        self.threshold['conv5'] = self.ds.thres_conv5
+        self.threshold['conv4'] = self.ds.thres_conv4
+        self.threshold['conv3'] = self.ds.thres_conv3
+        self.threshold['conv2'] = self.ds.thres_conv2
+        self.threshold['conv1'] = 0
 
         self.back_mode = self.ds.back_prop_mode
         w = self.ds.avg_pointcloud_width
         self.average_grid = np.mgrid[-w:w,-w:w]
-        self.visualize = True
-        self.show_backprop = True
         self.input_manager = InputManager(self.ds, self.input_dims)
 
     def set_frame(self, frame):
