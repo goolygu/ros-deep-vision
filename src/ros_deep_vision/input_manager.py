@@ -123,7 +123,7 @@ class InputManager:
             max_y += shift
             min_y = 0
 
-        self.min_max_box = [min_x, max_x, min_y, max_y]
+        self.min_max_box = [int(min_x), int(max_x), int(min_y), int(max_y)]
         print "min max box modified", self.min_max_box
 
     def crop(self, frame):

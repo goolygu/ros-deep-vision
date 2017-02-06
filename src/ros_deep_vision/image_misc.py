@@ -446,7 +446,7 @@ def get_relative_location(input_w_h, input_x_y, target_w_h):
 
     target_x = round((input_x_y[0]+0.5)*float(target_w_h[0])/float(input_w_h[0]))
     target_y = round((input_x_y[1]+0.5)*float(target_w_h[1])/float(input_w_h[1]))
-    return [target_x, target_y]
+    return [int(target_x), int(target_y)]
 
 def is_masked(input_w_h, input_x_y, mask):
 
