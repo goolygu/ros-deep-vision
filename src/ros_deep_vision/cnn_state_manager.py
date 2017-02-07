@@ -17,6 +17,7 @@ class CNNStateManager:
     def __init__(self, settings, data_setting_case = "cnn_features"):
         ds = DataSettings(case=data_setting_case)
         ds.mask_centering = False
+        self.ds = ds
         self.tbp = ds.tbp
 
         self.data_monster = DataMonster(settings, ds)

@@ -155,10 +155,11 @@ class DataSettings:
             self.conv3_top = 2
             self.conv2_top = 0
         elif case == "r2_demo":
-            self.conv5_top = 15
+            self.conv5_top = 30
             self.conv4_top = 5
             self.conv3_top = 0
             self.conv2_top = 0
+            self.cnn_pose_state_match = 'top'
         else:
             print "ERROR, no such case", case
 
