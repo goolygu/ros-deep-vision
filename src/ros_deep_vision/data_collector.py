@@ -54,7 +54,7 @@ class DataCollector:
     def __init__(self, path):
 
         self.bridge = CvBridge()
-        self.camera_frame = "/r2/head/asus_depth_optical_frame"
+        self.camera_frame = "r2/cal_asus_frame" #"/r2/head/asus_depth_optical_frame"
 
         self.lock = threading.Lock()
         self.path = path

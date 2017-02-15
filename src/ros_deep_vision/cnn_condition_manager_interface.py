@@ -14,6 +14,8 @@ from distribution import *
 import time
 from cnn_state_manager import *
 from umass_atg.classes.condition import *
+from umass_atg.pose_state_manager import *
+import tf
 
 class CNNConditionManagerInterface:
     def __init__(self, settings):
@@ -26,6 +28,8 @@ class CNNConditionManagerInterface:
         self.req = None
 
         self.pose_state_manager = PoseStateManager(ds=self.cnn_state_manager.ds)
+        self.tf_listener = tf.TransformListener()
+        self.pose_state_manager.set_tf_listener(self.tf_listener)
 
     # list of Dic2 of value, list of Dic2 of xyz, list of vector
     def create_condition(self, value_dic_list, xyz_dic_list, centroid_list, img_name_list):
