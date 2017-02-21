@@ -66,7 +66,7 @@ class DataCollector:
 
 
         self.mask_sub = rospy.Subscriber("/image_mask",Image, self.mask_callback, queue_size=1)
-        self.listener = tf.TransformListener()
+
 
         self.frame_list = ["r2/left_palm", "r2/left_index_base", "r2/left_index_yaw", "r2/left_index_proximal", \
                            "r2/left_index_medial", "r2/left_index_distal", "r2/left_index_tip", "r2/left_middle_base", "r2/left_middle_yaw", \
@@ -77,6 +77,8 @@ class DataCollector:
 
         s = rospy.Service('save_data', SaveData, self.handle_save_data)
 
+    def set_tf_listener(self, tf_listener):
+        self.listener = tf_listener
 
     def save_point_cloud(self, req):
         rospy.wait_for_service('save_point_cloud')
@@ -180,5 +182,7 @@ if __name__ == '__main__':
     rospack = rospkg.RosPack()
     ros_dir = rospack.get_path('ros_deep_vision')
     data_collector = DataCollector(ros_dir + "/data/set0/", True)
+    listener = tf.TransformListener()
+    data_collector.set_tf_listener(listener)
 
     rospy.spin()
