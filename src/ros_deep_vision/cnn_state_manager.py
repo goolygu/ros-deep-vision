@@ -146,21 +146,21 @@ class CNNStateManager:
         for i, box_min_max in enumerate(box_min_max_list):
             print "handle box", box_min_max
             if aspect_idx == None:
-                item_name = "item_"+str(i)
+                item_name = "item"+str(i)
             else:
-                item_name = "focus_" + str(aspect_idx)
+                item_name = "focus" + str(aspect_idx)
             self.data_monster.set_box(box_min_max, self.box_margin)
             # load image, point cloud, distribution
             data = Data()
             data.name = save_data_name
             data.img, data.mask, data.pc = None, None ,None
             while (not rospy.is_shutdown()) and (data.img is None or data.mask is None or data.pc is None):
-                self.data_monster.input_manager.load_img_mask_pc(data, self.path + '/current/')
+                self.data_monster.input_manager.load_img_mask_pc_seg(data, self.path + '/current/', i)
                 time.sleep(0.1)
 
             cv2.imshow("img_"+item_name, data.img[:,:,(2,1,0)])
             cv2.imshow("mask_"+item_name, data.mask)
-            img_name = self.path + '/current/' + data.name + "_" + item_name + "_rgb_crop.png"
+            img_name = self.path + '/current/' + data.name + "_" + item_name + "_rgb.png"
             cv2.imwrite(img_name, data.img[:, :, (2,1,0)])
             img_name_list.append(img_name)
 

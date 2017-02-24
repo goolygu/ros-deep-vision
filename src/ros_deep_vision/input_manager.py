@@ -158,6 +158,54 @@ class InputManager:
         a = np.asarray(p)
         return a
 
+    def load_img_mask_pc_seg(self, data, path, item_num):
+
+        mask_name = path + data.name + "_item" + str(item_num) + "_mask.png"
+        mask = cv2.imread(mask_name)
+        if mask is None:
+            print "[ERROR] No mask"
+            return None, None
+        mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
+        if self.ds.mask_centering:
+            center = self.get_mask_center(mask)
+            self.set_center(center)
+
+        # print "crop", self.min_max_box
+
+        mask = self.crop(mask)
+        mask = cv2.resize(mask, self.input_dims)
+
+
+        img_name = path + data.name + "_rgb.png"
+        img = cv2_read_file_rgb(img_name)
+        if img is None:
+            print "[ERROR] No image"
+            return None, None
+
+
+        img = self.crop(img)
+        img = cv2.resize(img, self.input_dims)
+
+        # load point cloud
+        pc_array = self.get_point_cloud_array(path, data.name, self.ds.pointcloud)
+        pc = pc_array.reshape(self.point_cloud_shape + (3,))
+        pc = self.crop(pc)
+
+
+        if self.visualize:
+            cv2.imshow("img", img)
+            cv2.waitKey(100)
+
+            cv2.imshow("mask", mask)
+            cv2.waitKey(100)
+
+            cv2.imshow("pc", pc)
+            cv2.waitKey(100)
+
+        data.img = img
+        data.mask = mask
+        data.pc = pc
+
     def load_img_mask_pc(self, data, path):
 
         mask_name = path + data.name + "_mask.png"
