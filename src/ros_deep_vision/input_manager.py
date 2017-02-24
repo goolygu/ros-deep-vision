@@ -187,10 +187,11 @@ class InputManager:
         img = cv2.resize(img, self.input_dims)
 
         # load point cloud
-        pc_array = self.get_point_cloud_array(path, data.name, self.ds.pointcloud)
+        p = pcl.PointCloud()
+        p.from_file(path + data.name + "_item" + str(item_num) + ".pcd")
+        pc_array = np.asarray(p)
         pc = pc_array.reshape(self.point_cloud_shape + (3,))
         pc = self.crop(pc)
-
 
         if self.visualize:
             cv2.imshow("img", img)
