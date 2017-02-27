@@ -76,10 +76,11 @@ class CNNConditionManagerInterface:
             pose_state_list = self.pose_state_manager.get_pose_state(pose_dic)
             aspect.set_state_list(state_list)
             aspect.set_pose_state_list(pose_state_list)
-            aspect.set_img_src(img_name_list[i])
+            aspect.set_img_src(img_name_list[i].split("/")[-1])
 
             aspect_pose.set(state_type_list, state_name_list, pose_list)
 
+            condition.aspect_name_list.append(aspect.img_src)
             condition.aspect_list.append(aspect)
             condition.aspect_pose_list.append(aspect_pose)
 
@@ -99,7 +100,7 @@ class CNNConditionManagerInterface:
             value_dic_list, xyz_dic_list, centroid_list, img_name_list = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)
         else:
             value_dic_list, xyz_dic_list, centroid_list, img_name_list = \
-            self.cnn_state_manager.get_clustered_cnn_list_state(req.expected_condition.aspect_list[0].state_list, req.aspect_idx_list[0])
+            self.cnn_state_manager.get_clustered_cnn_list_state(req.expected_condition.aspect_list, req.aspect_idx_list,use_last_observation=True)
 
         resp = GetConditionResponse()
 

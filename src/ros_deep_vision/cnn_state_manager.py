@@ -124,20 +124,24 @@ class CNNStateManager:
         # return state_list_all, pose_list_all
 
     # get list of hierarchical CNN features, state_list is the expected features, finds max N if set to None
-    def get_clustered_cnn_list_state(self,state_list,aspect_idx):
+    def get_clustered_cnn_list_state(self,expected_aspect_list,aspect_idx_list,use_last_observation=False):
         print "received grasp request"
 
-        save_data_name = self.capture_input()#"current_15-01-2017-20:38:40"#
-        time.sleep(0.3)
+        if use_last_observation:
+            save_data_name = self.last_data_name
+        else:
+            save_data_name = self.capture_input()#"current_15-01-2017-20:38:40"#
+            self.last_data_name = save_data_name
+            time.sleep(0.3)
         # load crop box
         box_min_max_list, centroid_list = self.get_box_list(save_data_name)
 
         # taking care of the top n largest blobs
         box_min_max_list = box_min_max_list[0:min(self.max_clusters,len(box_min_max_list))]
 
-        if aspect_idx != None:
-            box_min_max_list = [box_min_max_list[aspect_idx]]
-            centroid_list = [centroid_list[aspect_idx]]
+        if aspect_idx_list != None:
+            box_min_max_list = [box_min_max_list[aspect_idx] for aspect_idx in aspect_idx_list]
+            centroid_list = [centroid_list[aspect_idx] for aspect_idx in aspect_idx_list]
 
         value_dic_list = []
         xyz_dic_list = []
@@ -145,17 +149,19 @@ class CNNStateManager:
 
         for i, box_min_max in enumerate(box_min_max_list):
             print "handle box", box_min_max
-            if aspect_idx == None:
-                item_name = "item"+str(i)
+            if aspect_idx_list == None:
+                item_num = i
+                item_name = "item"+str(item_num)
             else:
-                item_name = "focus" + str(aspect_idx)
+                item_num = aspect_idx_list[i]
+                item_name = "focus" + str(item_num)
             self.data_monster.set_box(box_min_max, self.box_margin)
             # load image, point cloud, distribution
             data = Data()
             data.name = save_data_name
             data.img, data.mask, data.pc = None, None ,None
             while (not rospy.is_shutdown()) and (data.img is None or data.mask is None or data.pc is None):
-                self.data_monster.input_manager.load_img_mask_pc_seg(data, self.path + '/current/', i)
+                self.data_monster.input_manager.load_img_mask_pc_seg(data, self.path + '/current/', item_num)
                 time.sleep(0.1)
 
             cv2.imshow("img_"+item_name, data.img[:,:,(2,1,0)])
@@ -167,10 +173,10 @@ class CNNStateManager:
             cv2.waitKey(50)
 
             # generate grasp points
-            if state_list == None:
+            if expected_aspect_list == None:
                 filter_xyz_dict, value_dict = self.data_monster.get_state(None, data)
             else:
-                expected_dist = state_list_to_dist(state_list)
+                expected_dist = state_list_to_dist(expected_aspect_list[i].state_list)
                 # print "expected_dist", expected_dist.filter_tree
                 filter_xyz_dict, value_dict = self.data_monster.get_state(expected_dist, data)
 
