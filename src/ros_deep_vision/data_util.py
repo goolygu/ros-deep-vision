@@ -14,6 +14,7 @@ def closest_value(mat, p_x, p_y):
 
     return closest_value
 
+# This is for depth image, find closest value to point px py in mat that is not zero
 def closest_value_fast(mat, p_x, p_y):
     # create a sprial see http://stackoverflow.com/questions/398299/looping-in-a-spiral
     X = max(mat.shape[0] - p_x, p_x)*2
@@ -32,7 +33,37 @@ def closest_value_fast(mat, p_x, p_y):
             dx, dy = -dy, dx
         x, y = x+dx, y+dy
 
+def closest_pc_value_fast(pc, p_x, p_y, max_width):
+    # create a sprial see http://stackoverflow.com/questions/398299/looping-in-a-spiral
 
+    if np.isnan(p_x) or np.isnan(p_y):
+        return [float('nan'), float('nan'), float('nan')]
+
+    p_x = int(p_x)
+    p_y = int(p_y)
+
+    X = max(pc.shape[0] - p_x, p_x)*2
+    Y = max(pc.shape[1] - p_y, p_y)*2
+    x = y = 0
+    dx = 0
+    dy = -1
+    x_cord = 0
+    y_cord = 0
+
+    for i in range(max(X, Y)**2):
+        if (-X/2 < x <= X/2) and (-Y/2 < y <= Y/2):
+            # print (x, y),
+            if abs(x) > max_width or abs(y) > max_width:
+                return [float('nan'), float('nan'), float('nan')]
+            x_cord, y_cord = x+p_x, y+p_y
+
+            point = pc[x_cord, y_cord]
+            if x_cord >= 0 and x_cord < pc.shape[0] and y_cord >=0 and y_cord < pc.shape[1] and not (np.isnan(point[0]) or np.isnan(point[1]) or np.isnan(point[2]) ):
+                return pc[x_cord, y_cord].tolist()
+
+        if x == y or (x < 0 and x == -y) or (x > 0 and x == 1-y):
+            dx, dy = -dy, dx
+        x, y = x+dx, y+dy
 
 def state_list_to_dist(state_list):
     dist = Distribution()

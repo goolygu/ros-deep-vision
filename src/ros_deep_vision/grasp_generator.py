@@ -53,6 +53,7 @@ class GraspGenerator:
         save_data.result = -1
 
         self.data_collector.save_images(save_data.name)
+        self.data_collector.save_mask(save_data.name)
         self.data_collector.save_point_cloud_current(save_data)
 
         time.sleep(0.3)
@@ -108,6 +109,7 @@ class GraspGenerator:
         save_data.result = -1
 
         self.data_collector.save_images(save_data.name)
+        self.data_collector.save_mask(save_data.name)
         self.data_collector.save_point_cloud_multi(save_data)
 
         time.sleep(0.3)

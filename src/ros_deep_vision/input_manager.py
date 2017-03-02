@@ -19,6 +19,7 @@ class InputManager:
         self.frame_x = 480
         self.frame_y = 640
         self.min_box_w = 300
+        self.max_box_w = 480
         self.fix_margin = 0
         # self.set_box([200,460,180,440], 0)
         self.set_width(self.ds.input_width)
@@ -28,6 +29,9 @@ class InputManager:
 
     def set_min_box_width(self, min_box_w):
         self.min_box_w = min_box_w
+
+    def set_max_box_width(self, max_box_w):
+        self.max_box_w = max_box_w
 
     def set_box_fix_margin(self, fix_margin):
         self.fix_margin = fix_margin
@@ -98,11 +102,37 @@ class InputManager:
         min_y -= self.fix_margin
         max_y += self.fix_margin
 
+        print "min max", [int(min_x), int(max_x), int(min_y), int(max_y)]
+
         if (max_x - min_x) < self.min_box_w:
-            min_x -= (self.min_box_w - (max_x - min_x))/2
-            max_x += (self.min_box_w - (max_x - min_x))/2
-            min_y -= (self.min_box_w - (max_y - min_y))/2
-            max_y += (self.min_box_w - (max_y - min_y))/2
+            inc = (self.min_box_w - (max_x - min_x))/2
+            min_x -= inc
+            max_x += inc
+            min_y -= inc
+            max_y += inc
+
+        if (max_y - min_y) < self.min_box_w:
+            inc = (self.min_box_w - (max_y - min_y))/2
+            min_x -= inc
+            max_x += inc
+            min_y -= inc
+            max_y += inc
+
+        if (max_x - min_x) > self.max_box_w:
+            dec = (self.max_box_w - (max_x - min_x))/2
+            min_x -= dec
+            max_x += dec
+            min_y -= dec
+            max_y += dec
+
+        if (max_y - min_y) > self.max_box_w:
+            dec = (self.max_box_w - (max_x - min_x))/2
+            min_x -= dec
+            max_x += dec
+            min_y -= dec
+            max_y += dec
+
+        print "min max off", [int(min_x), int(max_x), int(min_y), int(max_y)]
 
         # consider corner conditions
         if max_x > self.frame_x:

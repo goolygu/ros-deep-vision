@@ -141,8 +141,12 @@ class DataCollector:
         with self.lock:
             cv2.imwrite(base_name + "_rgb.png", self.rgb_image)
             cv2.imwrite(base_name + "_depth.png", self.depth_image)
-            cv2.imwrite(base_name + "_mask.png", self.mask_image)
             # cv2.imwrite(base_name + "_rgb_crop.png", crop_to_center(self.rgb_image))
+
+    def save_mask(self, name):
+        base_name = self.path + name
+        with self.lock:
+            cv2.imwrite(base_name + "_mask.png", self.mask_image)
 
     def get_pose(self, base_frame, end_frame):
         (trans,rot) = self.listener.lookupTransform(base_frame, end_frame, rospy.Time(0))

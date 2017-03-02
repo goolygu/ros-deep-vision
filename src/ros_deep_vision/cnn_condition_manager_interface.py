@@ -21,7 +21,10 @@ class CNNConditionManagerInterface:
     def __init__(self, settings):
 
         self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo")
-        self.cnn_state_manager.set_box_param(200, 0, 15)
+        # self.cnn_state_manager.set_box_param(200, 0, 15)
+        self.cnn_state_manager.set_box_param(185, 0, 15, 185)
+        # self.cnn_state_manager.set_box_param(150, 0, 15, 150)
+
         s = rospy.Service('get_cnn_condition', GetCondition, self.handle_get_cnn_condition)
 
         self.called = False

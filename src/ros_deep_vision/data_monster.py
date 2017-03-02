@@ -668,7 +668,10 @@ class DataMonster:
         else:
             filter_xy = self.get_filter_max_xy(layer_data, threshold)
         orig_xy = self.get_orig_xy(filter_xy, resize_ratio)
-        filter_xyz = self.get_average_xyz_from_point_cloud(pc, orig_xy, self.average_grid)
+        if self.ds.xy_to_cloud_xyz == "avg":
+            filter_xyz = self.get_average_xyz_from_point_cloud(pc, orig_xy, self.average_grid)
+        elif self.ds.xy_to_cloud_xyz == "closest":
+            filter_xyz = self.get_closest_xyz_from_point_cloud(pc, orig_xy, max_width = self.ds.avg_pointcloud_width)
         return filter_xyz, filter_xy
 
 
@@ -1324,6 +1327,8 @@ class DataMonster:
     def gen_receptive_grid(self, receptive_field_size):
         return np.mgrid[0:receptive_field_size,0:receptive_field_size]
 
+    def get_closest_xyz_from_point_cloud(self, pc, xy, max_width):
+        return closest_pc_value_fast(pc,xy[0],xy[1],max_width)
 
     def get_average_xyz_from_point_cloud(self, pc, xy, receptive_grid):
         if np.isnan(xy[0]):

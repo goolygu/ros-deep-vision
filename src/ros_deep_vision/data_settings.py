@@ -10,6 +10,8 @@ class DataSettings:
 
         # how large of area should the mean xyz location be based on on the point cloud
         self.avg_pointcloud_width = 5
+        # [Not in name option] calculate xyz based on avg of a size avg_pointcloud_width grid
+        self.xy_to_cloud_xyz = "avg"  # use closest for higher accuracy
 
         self.thres_conv5 = 0
         self.thres_conv4 = 0
@@ -66,7 +68,7 @@ class DataSettings:
         self.filter_low_n = -1
         self.tbp_test_str = ""
         self.tbp_test = True
-
+        
         # comparing 5 different cases with and without targeted backpropagation
         # note the following may overwrite settings above
         if case == "tbp" or case == "notbp-test":
@@ -160,6 +162,8 @@ class DataSettings:
             self.conv3_top = 0
             self.conv2_top = 0
             self.cnn_pose_state_match = 'top'
+            self.avg_pointcloud_width = 5
+            self.xy_to_cloud_xyz = "closest"
         else:
             print "ERROR, no such case", case
 

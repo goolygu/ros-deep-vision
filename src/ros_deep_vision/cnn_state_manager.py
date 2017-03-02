@@ -38,11 +38,12 @@ class CNNStateManager:
         # the percentage of margin added to min max box
         self.box_margin = 0.5
 
-    def set_box_param(self, min_box_width, box_margin, fix_margin):
+    def set_box_param(self, min_box_width, box_margin, fix_margin, max_box_width = 480):
         self.box_margin = box_margin
         self.data_monster.input_manager.set_min_box_width(min_box_width)
         self.data_monster.input_manager.set_box_fix_margin(fix_margin)
-    def capture_input(self):
+        self.data_monster.input_manager.set_max_box_width(max_box_width)
+    def capture_input(self, mask=True):
 
         time_str = strftime("%d-%m-%Y-%H:%M:%S", time.gmtime())
         save_data = SaveDataRequest()
@@ -54,6 +55,9 @@ class CNNStateManager:
 
         self.data_collector.save_images(save_data.name)
         self.data_collector.save_point_cloud_multi(save_data)
+        if mask:
+            self.data_collector.save_mask(save_data.name)
+
         return save_data.name
 
     def get_box_list(self, data_name):
@@ -71,7 +75,7 @@ class CNNStateManager:
         return box_min_max_list, box_centroid_list
 
     # get list of hierarchical CNN features, state_list is the expected features, finds max N if set to None
-    def get_cnn_list_state(self,state_list):
+    def get_cnn_list_state(self,state_list=None):
         print "received grasp request"
 
         save_data_name = self.capture_input()
@@ -124,13 +128,13 @@ class CNNStateManager:
         # return state_list_all, pose_list_all
 
     # get list of hierarchical CNN features, state_list is the expected features, finds max N if set to None
-    def get_clustered_cnn_list_state(self,expected_aspect_list,aspect_idx_list,use_last_observation=False):
+    def get_clustered_cnn_list_state(self,expected_aspect_list=None,aspect_idx_list=None,use_last_observation=False):
         print "received grasp request"
 
         if use_last_observation:
             save_data_name = self.last_data_name
         else:
-            save_data_name = self.capture_input()#"current_15-01-2017-20:38:40"#
+            save_data_name = self.capture_input(mask=False)#"current_15-01-2017-20:38:40"#
             self.last_data_name = save_data_name
             time.sleep(0.3)
         # load crop box
@@ -199,7 +203,7 @@ if __name__ == '__main__':
         key = raw_input("enter r to run once, q to quit:\n")
         if key == 'r':
             # cnn_state_manager.set_box_param(200,0.,15)
-            cnn_state_manager.get_clustered_cnn_list_state(None)
+            cnn_state_manager.get_cnn_list_state()
         elif key == 'q':
             break
     # rospy.spin()
