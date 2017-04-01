@@ -874,7 +874,10 @@ class DataMonster:
     # dist is expected features
     def get_state(self, dist, data):
 
+        # store xyz location for each feature
         xyz_dict = {}
+        # store xy in image coordidate
+        xy_dict= {}
         response_dict = {}
         self.net_proc_forward_layer(data.img, data.mask)
         conv5_data = copy.deepcopy(self.net.blobs['conv5'].data[0])
@@ -895,6 +898,7 @@ class DataMonster:
 
             conv4_data, img_src_5 = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
             xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(img_src_5, data.pc, 0)
+            xy_dict[(filter_idx_5,)] = max_xy
             response_dict[(filter_idx_5,)] = self.get_max_filter_response(conv5_data[filter_idx_5])
 
             self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
@@ -912,6 +916,7 @@ class DataMonster:
 
                 conv3_data, img_src_4 = self.load_layer_fix_filter('conv3', 'conv4', conv4_data, data, filter_idx_4)
                 xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(img_src_4, data.pc, 0)
+                xy_dict[(filter_idx_5, filter_idx_4)] = max_xy
                 response_dict[(filter_idx_5, filter_idx_4)] = self.get_max_filter_response(conv4_data[filter_idx_4])
 
                 self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
@@ -929,11 +934,12 @@ class DataMonster:
 
                     conv2_data, img_src_3 = self.load_layer_fix_filter('conv2', 'conv3', conv3_data, data, filter_idx_3)
                     xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_filter_xyz(img_src_3, data.pc, 0)
+                    xy_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = max_xy
                     response_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = self.get_max_filter_response(conv3_data[filter_idx_3])
 
                     self.show_gradient(str((filter_idx_5, filter_idx_4, filter_idx_3)), self.net.blobs['data'], max_xy, 0)
 
-        return xyz_dict, response_dict
+        return xyz_dict, xy_dict, response_dict
 
 
     def show_depth(self, name, layer_data, pc):

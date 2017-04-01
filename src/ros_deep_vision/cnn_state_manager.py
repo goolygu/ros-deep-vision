@@ -114,11 +114,11 @@ class CNNStateManager:
 
         # generate grasp points
         if state_list == None:
-            filter_xyz_dict, value_dict = self.data_monster.get_state(None, data)
+            filter_xyz_dict, filter_xy_dict, value_dict = self.data_monster.get_state(None, data)
         else:
             expected_dist = state_list_to_dist(state_list)
             # print "expected_dist", expected_dist.filter_tree
-            filter_xyz_dict, value_dict = self.data_monster.get_state(expected_dist, data)
+            filter_xyz_dict, filter_xy_dict, value_dict = self.data_monster.get_state(expected_dist, data)
 
 
         print "show feature"
@@ -158,6 +158,7 @@ class CNNStateManager:
 
         value_dic_list = []
         xyz_dic_list = []
+        xy_dic_list = []
         img_name_list = []
 
         for i, box_min_max in enumerate(box_min_max_list):
@@ -179,20 +180,22 @@ class CNNStateManager:
 
             cv2.imshow("img_"+item_name, data.img[:,:,(2,1,0)])
             cv2.imshow("mask_"+item_name, data.mask)
-            img_name = self.path + data.name + "_" + item_name + "_rgb.png"
             if not self.replay_mode:
-                cv2.imwrite(img_name, data.img[:, :, (2,1,0)])
+                img_name = self.path + data.name + "_" + item_name + "_rgb.png"
+            else:
+                img_name = self.path + data.name + "_" + item_name + "_replay_rgb.png"
+            cv2.imwrite(img_name, data.img[:, :, (2,1,0)])
             img_name_list.append(img_name)
 
             cv2.waitKey(50)
 
             # generate grasp points
             if expected_aspect_list == None:
-                filter_xyz_dict, value_dict = self.data_monster.get_state(None, data)
+                filter_xyz_dict, filter_xy_dict, value_dict = self.data_monster.get_state(None, data)
             else:
                 expected_dist = state_list_to_dist(expected_aspect_list[i].state_list)
                 # print "expected_dist", expected_dist.filter_tree
-                filter_xyz_dict, value_dict = self.data_monster.get_state(expected_dist, data)
+                filter_xyz_dict, filter_xy_dict, value_dict = self.data_monster.get_state(expected_dist, data)
 
 
             print "show feature"
@@ -200,11 +203,12 @@ class CNNStateManager:
 
             value_dic_list.append(value_dict)
             xyz_dic_list.append(filter_xyz_dict)
+            xy_dic_list.append(filter_xy_dict)
             # state_list, pose_list = to_state_pose_list(value_dict, filter_xyz_dict)
             # clustered_state_list.append(state_list)
             # clustered_pose_list.append(pose_list)
 
-        return value_dic_list, xyz_dic_list, centroid_list, img_name_list, save_data_name
+        return value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, save_data_name
 
 if __name__ == '__main__':
     rospy.init_node('cnn_state_manager', anonymous=True)

@@ -51,13 +51,14 @@ class CNNConditionManagerInterface:
         self.pose_state_manager.set_tf_listener(self.tf_listener)
 
     # list of Dic2 of value, list of Dic2 of xyz, list of vector
-    def create_condition(self, value_dic_list, xyz_dic_list, centroid_list, img_name_list, name):
+    def create_condition(self, value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name):
         condition = Condition()
         condition.name = name
         # loop through aspects
         for i, value_dic in enumerate(value_dic_list):
 
             xyz_dic = xyz_dic_list[i]
+            xy_dic = xy_dic_list[i]
             aspect = Aspect()
             aspect_pose = AspectPose()
 
@@ -68,6 +69,7 @@ class CNNConditionManagerInterface:
             state_type_list = []
             state_name_list = []
             pose_list = []
+            xy_list = []
 
             # loop through each feature
             for sig in value_dic:
@@ -81,6 +83,7 @@ class CNNConditionManagerInterface:
                 state_name_list.append(state.name)
 
                 pose_msg = Pose()
+                xy_msg = Point()
                 if not state.value == 0:
                     pose_msg.position.x = xyz_dic[sig][0]
                     pose_msg.position.y = xyz_dic[sig][1]
@@ -89,7 +92,11 @@ class CNNConditionManagerInterface:
                     pose_msg.orientation.y = 0
                     pose_msg.orientation.z = 0
                     pose_msg.orientation.w = 1
+                    xy_msg.x = xy_dic[sig][0]
+                    xy_msg.y = xy_dic[sig][1]
+                    xy_msg.z = 0.
                 pose_list.append(pose_msg)
+                xy_list.append(xy_msg)
                 pose_dic.add(state.type, state.name, pose_msg)
 
             pose_state_list = self.pose_state_manager.get_pose_state(pose_dic)
@@ -97,7 +104,7 @@ class CNNConditionManagerInterface:
             aspect.set_pose_state_list(pose_state_list)
             aspect.set_img_src(img_name_list[i].split("/")[-1])
 
-            aspect_pose.set(state_type_list, state_name_list, pose_list)
+            aspect_pose.set(state_type_list, state_name_list, pose_list, xy_list)
 
             condition.aspect_name_list.append(aspect.img_src)
             condition.aspect_list.append(aspect)
@@ -116,19 +123,19 @@ class CNNConditionManagerInterface:
 
         req = self.req
         if req.expected_condition.name == "None":
-            value_dic_list, xyz_dic_list, centroid_list, img_name_list, name = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)
+            value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)
         elif req.expected_condition.name == "":
-            value_dic_list, xyz_dic_list, centroid_list, img_name_list, name = \
+            value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = \
             self.cnn_state_manager.get_clustered_cnn_list_state(req.expected_condition.aspect_list, req.aspect_idx_list,use_last_observation=True, data_name=req.expected_condition.name)
         else:
-            value_dic_list, xyz_dic_list, centroid_list, img_name_list, name = \
+            value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = \
             self.cnn_state_manager.get_clustered_cnn_list_state(None, None, data_name=req.expected_condition.name)
 
         resp = GetConditionResponse()
 
         # condition = Condition()
         # condition.set(value_dic_list, xyz_dic_list, centroid_list, img_name_list)
-        condition = self.create_condition(value_dic_list, xyz_dic_list, centroid_list, img_name_list, name)
+        condition = self.create_condition(value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name)
         resp.condition = condition.to_ros_msg()
         self.resp = resp
 
