@@ -122,7 +122,7 @@ add_executable(input_server src/input_server.cpp src/point_cloud_manager.cpp)
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(temp_node temp_generate_messages_cpp)
-#add_dependencies(input_server perception_msgs_gencpp)
+add_dependencies(input_server ros_deep_vision_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(temp_node
