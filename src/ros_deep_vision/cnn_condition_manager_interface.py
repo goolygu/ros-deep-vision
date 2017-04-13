@@ -39,14 +39,14 @@ class CNNConditionManagerInterface:
         self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", replay_dir=replay_dir)
         # self.cnn_state_manager.set_box_param(200, 0, 15)
         self.cnn_state_manager.set_box_param(185, 0, 15, 185)
-        # self.cnn_state_manager.set_box_param(150, 0, 15, 150)
+        # self.cnn_state_manager.set_box_param(170, 0, 15, 170)
 
         s = rospy.Service('get_cnn_condition', GetCondition, self.handle_get_cnn_condition)
 
         self.called = False
         self.req = None
 
-        self.pose_state_manager = PoseStateManager(ds=self.cnn_state_manager.ds)
+        self.pose_state_manager = PoseStateManager(ds=self.cnn_state_manager.ds, replay=self.replay_mode)
         self.tf_listener = tf.TransformListener()
         self.pose_state_manager.set_tf_listener(self.tf_listener)
 

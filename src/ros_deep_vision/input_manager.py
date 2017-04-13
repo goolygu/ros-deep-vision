@@ -77,7 +77,9 @@ class InputManager:
         max_x_orig = min_max_box[1]
         min_y_orig = min_max_box[2]
         max_y_orig = min_max_box[3]
-        self.width = max(max_x_orig-min_x_orig, max_y_orig-min_y_orig)
+        w_x_orig = max_x_orig-min_x_orig
+        w_y_orig = max_y_orig-min_y_orig
+        self.width = max(w_x_orig, w_y_orig)
         self.margin = round(self.width * margin_ratio)
         if self.width + 2*self.margin > self.frame_x:
             self.margin = int(math.floor((self.frame_x - self.width)/2.0))
@@ -92,10 +94,10 @@ class InputManager:
 
             return
 
-        min_x = min_x_orig - self.margin
-        max_x = min_x_orig + self.width + self.margin
-        min_y = min_y_orig - self.margin
-        max_y = min_y_orig + self.width + self.margin
+        min_x = min_x_orig - (self.margin + (self.width - w_x_orig)/2.)
+        max_x = min_x_orig + w_x_orig + self.margin + (self.width - w_x_orig)/2.
+        min_y = min_y_orig - (self.margin + (self.width - w_y_orig)/2.)
+        max_y = min_y_orig + w_y_orig + self.margin + (self.width - w_y_orig)/2.
 
         min_x -= self.fix_margin
         max_x += self.fix_margin
@@ -126,7 +128,7 @@ class InputManager:
             max_y += dec
 
         if (max_y - min_y) > self.max_box_w:
-            dec = (self.max_box_w - (max_x - min_x))/2
+            dec = (self.max_box_w - (max_y - min_y))/2
             min_x -= dec
             max_x += dec
             min_y -= dec
