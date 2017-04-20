@@ -69,7 +69,8 @@ def state_list_to_dist(state_list):
     dist = Distribution()
     for state in state_list:
         # print "state", state.name
-        dist.set_tree_feature(state.name)
+        if state.type == "cnn":
+            dist.set_tree_feature(state.name)
     return dist
 
 
