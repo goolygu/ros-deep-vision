@@ -31,12 +31,20 @@ class CNNConditionManagerInterface:
             if replay_data == "no_replay":
                 replay_dir = None
                 self.replay_mode = False
+                self.mode = "default"
             else:
                 rospack = rospkg.RosPack()
                 replay_dir = rospack.get_path(replay_data) + "/current/"
                 self.replay_mode = True
+                self.mode = "replay"
 
-        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", replay_dir=replay_dir)
+        if rospy.has_param("~mode") and self.mode == "default":
+            mode = rospy.get_param("~mode")
+            rospy.delete_param("~mode")
+            print "mode: ", mode
+            self.mode = mode
+
+        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", mode=self.mode, replay_dir=replay_dir)
         # self.cnn_state_manager.set_box_param(200, 0, 15)
         self.cnn_state_manager.set_box_param(185, 0, 15, 185)
         # self.cnn_state_manager.set_box_param(170, 0, 15, 170)

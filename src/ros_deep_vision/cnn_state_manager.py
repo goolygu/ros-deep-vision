@@ -14,7 +14,7 @@ import time
 
 
 class CNNStateManager:
-    def __init__(self, settings, data_setting_case = "cnn_features", replay_dir = None):
+    def __init__(self, settings, data_setting_case = "cnn_features", mode = "default", replay_dir = None):
         ds = DataSettings(case=data_setting_case)
         ds.mask_centering = False
         self.ds = ds
@@ -37,10 +37,10 @@ class CNNStateManager:
         self.data_monster.input_manager.set_min_box_width(50)
         # the percentage of margin added to min max box
         self.box_margin = 0.5
-        self.replay_mode = False
+
+        self.mode = mode
 
         if replay_dir != None:
-            self.replay_mode = True
             self.path = replay_dir
 
     def set_box_param(self, min_box_width, box_margin, fix_margin, max_box_width = 480):
@@ -80,7 +80,7 @@ class CNNStateManager:
         return box_min_max_list, box_centroid_list
 
     # get list of hierarchical CNN features, state_list is the expected features, finds max N if set to None
-    def get_cnn_list_state(self,state_list=None):
+    def get_cnn_list_state(self, state_list=None):
         print "received grasp request"
 
         save_data_name = self.capture_input()
@@ -133,10 +133,11 @@ class CNNStateManager:
         # return state_list_all, pose_list_all
 
     # get list of hierarchical CNN features, state_list is the expected features, finds max N if set to None
-    def get_clustered_cnn_list_state(self,expected_aspect_list=None,aspect_idx_list=None,use_last_observation=False,data_name=None):
+    # aspect_idx_list matches the expected_aspect_list, for focus request
+    def get_clustered_cnn_list_state(self, expected_aspect_list=None, aspect_idx_list=None, use_last_observation=False, data_name=None):
         print "received grasp request"
 
-        if self.replay_mode:
+        if self.mode == "replay":
             save_data_name = data_name
 
         else:
@@ -146,6 +147,7 @@ class CNNStateManager:
                 save_data_name = self.capture_input(mask=False)#"current_15-01-2017-20:38:40"#
                 self.last_data_name = save_data_name
                 time.sleep(0.3)
+
         # load crop box
         box_min_max_list, centroid_list = self.get_box_list(save_data_name)
 
@@ -160,6 +162,7 @@ class CNNStateManager:
         xyz_dic_list = []
         xy_dic_list = []
         img_name_list = []
+
 
         for i, box_min_max in enumerate(box_min_max_list):
             print "handle box", box_min_max
@@ -180,7 +183,7 @@ class CNNStateManager:
 
             cv2.imshow("img_"+item_name, data.img[:,:,(2,1,0)])
             cv2.imshow("mask_"+item_name, data.mask)
-            if not self.replay_mode:
+            if not self.mode == "replay":
                 img_name = self.path + data.name + "_" + item_name + "_rgb.png"
             else:
                 img_name = self.path + data.name + "_" + item_name + "_replay_rgb.png"
@@ -188,6 +191,10 @@ class CNNStateManager:
             img_name_list.append(img_name)
 
             cv2.waitKey(50)
+
+            # don't calculate features if collect mode
+            if self.mode == "collect":
+                continue
 
             # generate grasp points
             if expected_aspect_list == None:
