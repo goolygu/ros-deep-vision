@@ -25,7 +25,10 @@ class InputManager:
         self.set_width(self.ds.input_width)
         self.point_cloud_shape = (480,640)
         self.visualize = False
+        self.left_hand_offset = False
 
+    def set_left_hand_offset(self, left_hand_offset):
+        self.left_hand_offset = left_hand_offset
 
     def set_min_box_width(self, min_box_w):
         self.min_box_w = min_box_w
@@ -41,6 +44,10 @@ class InputManager:
 
     def set_visualize(self, vis):
         self.visualize = vis
+
+    def set_y_offset(self, offset):
+        self.min_max_box[2] += offset
+        self.min_max_box[3] += offset
 
     def set_center(self, center_xy):
         # print "set_center", self.min_max_box
@@ -124,15 +131,21 @@ class InputManager:
             dec = (self.max_box_w - (max_x - min_x))/2
             min_x -= dec
             max_x += dec
-            min_y -= dec
-            max_y += dec
+            if self.left_hand_offset:
+                min_y -= 2*dec
+            else:
+                min_y -= dec
+                max_y += dec
 
         if (max_y - min_y) > self.max_box_w:
             dec = (self.max_box_w - (max_y - min_y))/2
             min_x -= dec
             max_x += dec
-            min_y -= dec
-            max_y += dec
+            if self.left_hand_offset:
+                min_y -= 2*dec
+            else:
+                min_y -= dec
+                max_y += dec
 
         print "min max off", [int(min_x), int(max_x), int(min_y), int(max_y)]
 
@@ -201,7 +214,7 @@ class InputManager:
         if self.ds.mask_centering:
             center = self.get_mask_center(mask)
             self.set_center(center)
-
+        # self.set_y_offset(50)
         # print "crop", self.min_max_box
 
         mask = self.crop(mask)

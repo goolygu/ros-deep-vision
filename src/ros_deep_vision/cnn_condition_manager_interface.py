@@ -46,8 +46,8 @@ class CNNConditionManagerInterface:
 
         self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", mode=self.mode, replay_dir=replay_dir)
         # self.cnn_state_manager.set_box_param(200, 0, 15)
-        self.cnn_state_manager.set_box_param(185, 0, 15, 185)
-        # self.cnn_state_manager.set_box_param(170, 0, 15, 170)
+        # self.cnn_state_manager.set_box_param(185, 0, 15, 185)
+        self.cnn_state_manager.set_box_param(200, 0, 15, 200, left_hand_offset=True)
 
         s = rospy.Service('get_cnn_condition', GetCondition, self.handle_get_cnn_condition)
 
@@ -128,7 +128,7 @@ class CNNConditionManagerInterface:
         return condition
 
     def get_clustered_cnn_list_state(self):
-
+        print "got request"
         req = self.req
         if req.expected_condition.name == "None":
             value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)

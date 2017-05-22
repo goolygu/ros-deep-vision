@@ -43,11 +43,13 @@ class CNNStateManager:
         if replay_dir != None:
             self.path = replay_dir
 
-    def set_box_param(self, min_box_width, box_margin, fix_margin, max_box_width = 480):
+    def set_box_param(self, min_box_width, box_margin, fix_margin, max_box_width = 480, left_hand_offset = False):
         self.box_margin = box_margin
         self.data_monster.input_manager.set_min_box_width(min_box_width)
         self.data_monster.input_manager.set_box_fix_margin(fix_margin)
         self.data_monster.input_manager.set_max_box_width(max_box_width)
+        self.data_monster.input_manager.set_left_hand_offset(left_hand_offset)
+        
     def capture_input(self, mask=True):
 
         time_str = strftime("%d-%m-%Y-%H:%M:%S", time.gmtime())
@@ -198,7 +200,7 @@ class CNNStateManager:
 
             # generate grasp points
             if expected_aspect_list == None:
-                filter_xyz_dict, filter_xy_dict, value_dict = self.data_monster.get_state(None, data)
+                filter_xyz_dict, filter_xy_dict, value_dict = self.data_monster.get_state(None, data, idx=i)
             else:
                 expected_dist = state_list_to_dist(expected_aspect_list[i].state_list)
                 # print "expected_dist", expected_dist.filter_tree

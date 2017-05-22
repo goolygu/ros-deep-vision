@@ -68,7 +68,7 @@ class DataSettings:
         self.filter_low_n = -1
         self.tbp_test_str = ""
         self.tbp_test = True
-        
+
         # comparing 5 different cases with and without targeted backpropagation
         # note the following may overwrite settings above
         if case == "tbp" or case == "notbp-test":
@@ -164,6 +164,7 @@ class DataSettings:
             self.cnn_pose_state_match = 'top'
             self.avg_pointcloud_width = 5
             self.xy_to_cloud_xyz = "closest"
+            self.mask_centering = False
         else:
             print "ERROR, no such case", case
 
