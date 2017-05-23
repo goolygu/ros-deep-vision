@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <launch>
-	<arg name="replay_data" default="no_replay"/>
+	<arg name="replay_data" default="ros_deep_vision"/>
 	<arg name="mode" default="default"/>
 	<node pkg="ros_deep_vision" type="cnn_condition_manager_interface.py" name="cnn_condition_manager_interface_r2" output="screen">
 		<!--<param name="camera_frame" value="/r2/head/asus_depth_optical_frame"/>-->

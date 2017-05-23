@@ -134,11 +134,14 @@ class CNNConditionManagerInterface:
         self.cnn_state_manager.set_mode(req.mode)
         self.pose_state_manager.set_mode(req.mode)
 
+        # no expectation on what will observe
         if req.expected_condition.name == "None":
             value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)
+        # refining
         elif req.expected_condition.name == "":
             value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = \
             self.cnn_state_manager.get_clustered_cnn_list_state(req.expected_condition.aspect_list, req.aspect_idx_list,use_last_observation=True, data_name=req.expected_condition.name)
+        # replay
         else:
             value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = \
             self.cnn_state_manager.get_clustered_cnn_list_state(None, None, data_name=req.expected_condition.name)
