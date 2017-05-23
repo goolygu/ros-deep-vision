@@ -22,11 +22,11 @@ class CNNStateManager:
 
         self.data_monster = DataMonster(settings, ds)
         self.data_monster.visualize = True
-        self.path = settings.ros_dir + '/current/'
+        self.observe_path = settings.ros_dir + '/current/'
 
-        self.data_monster.set_train_path(self.path)
+        self.data_monster.set_train_path(self.observe_path)
 
-        self.data_collector = DataCollector(self.path)
+        self.data_collector = DataCollector(self.observe_path)
 
         self.data_monster.show_backprop = False#True#
         self.max_clusters = 3
@@ -38,10 +38,19 @@ class CNNStateManager:
         # the percentage of margin added to min max box
         self.box_margin = 0.5
 
-        self.mode = mode
+        self.replay_dir = replay_dir
 
-        if replay_dir != None:
-            self.path = replay_dir
+        self.set_mode(mode)
+        # if replay_dir != None:
+        #     self.path = replay_dir
+
+    def set_mode(self, mode):
+        self.mode = mode
+        if mode == "replay":
+            self.path = self.replay_dir
+        else:
+            self.path = self.observe_path
+
 
     def set_box_param(self, min_box_width, box_margin, fix_margin, max_box_width = 480, left_hand_offset = False):
         self.box_margin = box_margin
@@ -49,7 +58,7 @@ class CNNStateManager:
         self.data_monster.input_manager.set_box_fix_margin(fix_margin)
         self.data_monster.input_manager.set_max_box_width(max_box_width)
         self.data_monster.input_manager.set_left_hand_offset(left_hand_offset)
-        
+
     def capture_input(self, mask=True):
 
         time_str = strftime("%d-%m-%Y-%H:%M:%S", time.gmtime())

@@ -30,21 +30,21 @@ class CNNConditionManagerInterface:
 
             if replay_data == "no_replay":
                 replay_dir = None
-                self.replay_mode = False
-                self.mode = "default"
+                # self.replay_mode = False
+                # self.mode = "default"
             else:
                 rospack = rospkg.RosPack()
                 replay_dir = rospack.get_path(replay_data) + "/current/"
-                self.replay_mode = True
-                self.mode = "replay"
+                # self.replay_mode = True
+                # self.mode = "replay"
 
-        if rospy.has_param("~mode") and self.mode == "default":
-            mode = rospy.get_param("~mode")
-            rospy.delete_param("~mode")
-            print "mode: ", mode
-            self.mode = mode
+        # if rospy.has_param("~mode"):
+        #     mode = rospy.get_param("~mode")
+        #     rospy.delete_param("~mode")
+        #     print "mode: ", mode
+        #     self.mode = mode
 
-        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", mode=self.mode, replay_dir=replay_dir)
+        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", replay_dir=replay_dir)
         # self.cnn_state_manager.set_box_param(200, 0, 15)
         # self.cnn_state_manager.set_box_param(185, 0, 15, 185)
         self.cnn_state_manager.set_box_param(200, 0, 15, 200, left_hand_offset=True)
@@ -54,7 +54,7 @@ class CNNConditionManagerInterface:
         self.called = False
         self.req = None
 
-        self.pose_state_manager = PoseStateManager(ds=self.cnn_state_manager.ds, replay=self.replay_mode)
+        self.pose_state_manager = PoseStateManager(ds=self.cnn_state_manager.ds)
         self.tf_listener = tf.TransformListener()
         self.pose_state_manager.set_tf_listener(self.tf_listener)
 
@@ -128,8 +128,12 @@ class CNNConditionManagerInterface:
         return condition
 
     def get_clustered_cnn_list_state(self):
-        print "got request"
+        print "got request, mode", self.req.mode
         req = self.req
+
+        self.cnn_state_manager.set_mode(req.mode)
+        self.pose_state_manager.set_mode(req.mode)
+
         if req.expected_condition.name == "None":
             value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)
         elif req.expected_condition.name == "":
