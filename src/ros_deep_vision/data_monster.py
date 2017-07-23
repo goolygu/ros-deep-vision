@@ -665,6 +665,8 @@ class DataMonster:
         resize_ratio = float(pc.shape[0]) / float(layer_data.shape[0])
         if True:
             filter_xy = self.get_filter_avg_xy(layer_data, threshold)
+        elif False:
+            filter_xy = self.get_filter_avg_xy_square(layer_data, threshold)
         else:
             filter_xy = self.get_filter_max_xy(layer_data, threshold)
         orig_xy = self.get_orig_xy(filter_xy, resize_ratio)
@@ -872,7 +874,7 @@ class DataMonster:
         return xyz_dict, response_dict
 
     # dist is expected features
-    def get_state(self, dist, data):
+    def get_state(self, dist, data, idx=0):
 
         # store xyz location for each feature
         xyz_dict = {}
@@ -880,6 +882,7 @@ class DataMonster:
         xy_dict= {}
         response_dict = {}
         self.net_proc_forward_layer(data.img, data.mask)
+        # self.net_preproc_forward(data.img)
         conv5_data = copy.deepcopy(self.net.blobs['conv5'].data[0])
 
         # self.show_depth('depth', self.net.blobs['data'].data, pc_array)
@@ -897,8 +900,24 @@ class DataMonster:
             print filter_idx_5
 
             conv4_data, img_src_5 = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
-            xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(img_src_5, data.pc, 0)
+            if self.ds.location_layer == "image":
+                loc_layer = img_src_5
+            else:
+                loc_layer = conv5_data[filter_idx_5]
+
+            xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(loc_layer, data.pc, 0)
+            resize_ratio = float(data.img.shape[0]) / float(loc_layer.shape[0])
+            max_xy = self.get_orig_xy(max_xy, resize_ratio)
+
             xy_dict[(filter_idx_5,)] = max_xy
+
+            # visualize specific feature back propagation result
+            if False and filter_idx_5 in [81, 23]:
+                # imshow = cv2.resize(conv5_data[filter_idx_5], (227,227), interpolation = cv2.INTER_LINEAR)
+                imshow = img_src_5
+                cv2.imshow(str(idx) + "_" + str(filter_idx_5) + "_" + data.name, np.hstack((norm0255(imshow), data.img[:,:,0])))
+                cv2.waitKey(200)
+
             response_dict[(filter_idx_5,)] = self.get_max_filter_response(conv5_data[filter_idx_5])
 
             self.show_gradient(str((filter_idx_5)), self.net.blobs['data'], max_xy, 0)
@@ -915,9 +934,24 @@ class DataMonster:
                 print filter_idx_5, filter_idx_4
 
                 conv3_data, img_src_4 = self.load_layer_fix_filter('conv3', 'conv4', conv4_data, data, filter_idx_4)
-                xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(img_src_4, data.pc, 0)
+                if self.ds.location_layer == "image":
+                    loc_layer = img_src_4
+                else:
+                    loc_layer = conv4_data[filter_idx_4]
+
+                xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(loc_layer, data.pc, 0)
+                resize_ratio = float(data.img.shape[0]) / float(loc_layer.shape[0])
+                max_xy = self.get_orig_xy(max_xy, resize_ratio)
+
                 xy_dict[(filter_idx_5, filter_idx_4)] = max_xy
                 response_dict[(filter_idx_5, filter_idx_4)] = self.get_max_filter_response(conv4_data[filter_idx_4])
+
+                # visualize specific feature back propagation result
+                if False and [filter_idx_5, filter_idx_4] in [[81,96],[23,60]]:
+                    # imshow = cv2.resize(conv4_data[filter_idx_4], (227,227), interpolation = cv2.INTER_LINEAR)
+                    imshow = img_src_4
+                    cv2.imshow(str(idx) + "_" + str(filter_idx_5) + str(filter_idx_4) + "_" + data.name, np.hstack((norm0255(imshow),data.img[:,:,0])))
+                    cv2.waitKey(200)
 
                 self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
 
@@ -933,7 +967,15 @@ class DataMonster:
                     print filter_idx_5, filter_idx_4, filter_idx_3
 
                     conv2_data, img_src_3 = self.load_layer_fix_filter('conv2', 'conv3', conv3_data, data, filter_idx_3)
-                    xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_filter_xyz(img_src_3, data.pc, 0)
+                    if self.ds.location_layer == "image":
+                        loc_layer = img_src_3
+                    else:
+                        loc_layer = conv3_data[filter_idx_3]
+
+                    xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3)], max_xy = self.get_filter_xyz(loc_layer, data.pc, 0)
+                    resize_ratio = float(data.img.shape[0]) / float(loc_layer.shape[0])
+                    max_xy = self.get_orig_xy(max_xy, resize_ratio)
+
                     xy_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = max_xy
                     response_dict[(filter_idx_5, filter_idx_4, filter_idx_3)] = self.get_max_filter_response(conv3_data[filter_idx_3])
 
@@ -1070,6 +1112,7 @@ class DataMonster:
 
     def get_filter_avg_xy(self, filter_response, threshold):
         # print "max", np.amax(filter_response)
+        filter_response = np.maximum(filter_response,0) #TODO: check if necessary
         assert filter_response.ndim == 2, "filter size incorrect"
 
         max_value = np.amax(filter_response)
@@ -1087,6 +1130,25 @@ class DataMonster:
 
         return np.around(np.array([avg_x, avg_y])).astype(int)
 
+    def get_filter_avg_xy_square(self, filter_response, threshold):
+        # print "max", np.amax(filter_response)
+        filter_response = np.maximum(filter_response,0)
+        assert filter_response.ndim == 2, "filter size incorrect"
+
+        max_value = np.amax(filter_response)
+        if max_value <= threshold:
+            return np.array([float('nan'),float('nan')])
+
+        xy_grid = np.mgrid[0:filter_response.shape[0], 0:filter_response.shape[0]]
+
+        if np.sum(filter_response) == 0:
+            return np.array([float('nan'),float('nan')])
+        filter_response = filter_response**2
+        filter_response_norm = filter_response / float(np.sum(filter_response))
+        avg_x = np.sum(xy_grid[0] * filter_response_norm)
+        avg_y = np.sum(xy_grid[1] * filter_response_norm)
+
+        return np.around(np.array([avg_x, avg_y])).astype(int)
 
     def get_filter_max_xy(self, filter_response, threshold):
         assert filter_response.ndim == 2, "filter size incorrect"

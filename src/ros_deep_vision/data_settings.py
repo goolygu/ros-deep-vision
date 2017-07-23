@@ -164,6 +164,7 @@ class DataSettings:
             self.cnn_pose_state_match = 'top'
             self.avg_pointcloud_width = 5
             self.xy_to_cloud_xyz = "closest"
+            self.mask_centering = False
         else:
             print "ERROR, no such case", case
 
