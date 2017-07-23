@@ -68,7 +68,7 @@ class DataSettings:
         self.filter_low_n = -1
         self.tbp_test_str = ""
         self.tbp_test = True
-        
+
         # comparing 5 different cases with and without targeted backpropagation
         # note the following may overwrite settings above
         if case == "tbp" or case == "notbp-test":

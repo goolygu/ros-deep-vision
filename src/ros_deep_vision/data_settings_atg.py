@@ -22,6 +22,8 @@ class DataSettings:
 
 
 
+
+
         self.backprop_xy = 'all' #'sin' #
 
         # avg back prop to image and do avg, max does filter level max xyz
@@ -57,6 +59,8 @@ class DataSettings:
         self.pointcloud = 'seg' # seg
         self.mask = 'mask'
         self.evaluate = 'full' # 'case'
+        # how is the grasp point determined from a distribution
+        self.dist_to_grasp_point = "densepoint" #"density" "center"
 
     def get_name(self):
         name = '(' + str(len(self.frame_list_conv5)) + '-' + str(len(self.frame_list_conv4)) + '-' + str(len(self.frame_list_conv3)) + ')_(' + \
@@ -70,6 +74,6 @@ class DataSettings:
         name =  self.filter_test + '_' + \
                 '(' + str(self.conv5_top) + '-' + str(self.conv4_top) + '-' + str(self.conv3_top) + ')_' + \
                 '(' + str(self.thres_conv5_test) + '-' + str(self.thres_conv4_test) + '-' + str(self.thres_conv3_test) + ')_' + \
-                self.evaluate + '_' + self.mask + '_' + self.pointcloud
+                self.evaluate + '_' + self.mask + '_' + self.pointcloud + "_" + self.dist_to_grasp_point
 
         return name

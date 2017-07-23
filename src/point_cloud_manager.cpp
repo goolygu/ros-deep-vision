@@ -160,7 +160,7 @@ void PointCloudManager::get_below_table_mask(pcl::PointCloud<pcl::PointXYZRGBA>:
   }
 
   // remove anything below the table
-  if (false)
+  if (true)
   {
     for(size_t i = 0; i< cloud_ptr->points.size(); i++)
     {
