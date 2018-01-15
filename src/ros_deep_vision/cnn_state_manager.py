@@ -3,6 +3,7 @@ import roslib
 import rospy
 import sys
 from data_monster import *
+from data_sheep import *
 from data_collector import *
 import settings
 from ros_deep_vision.srv import SaveData
@@ -20,19 +21,20 @@ class CNNStateManager:
         self.ds = ds
         self.tbp = ds.tbp
 
-        self.data_monster = DataMonster(settings, ds)
-        self.data_monster.visualize = True
+        self.data_monster = DataSheep(settings, ds)
+        # self.data_monster = DataMonster(settings, ds)
+        self.data_monster.set_visualize(True)
         self.observe_path = settings.ros_dir + '/current/'
 
-        self.data_monster.set_train_path(self.observe_path)
+        # self.data_monster.set_train_path(self.observe_path)
 
         self.data_collector = DataCollector(self.observe_path)
 
-        self.data_monster.show_backprop = False#True#
+        self.data_monster.net.show_backprop = False#True#
         self.max_clusters = 3
-        camera_frame = rospy.get_param('~camera_frame') # kinect_optical_frame for ubot, /r2/head/asus_depth_optical_frame for r2
-        print "camera_frame", camera_frame
-        self.data_monster.set_frame(camera_frame)
+        # camera_frame = rospy.get_param('~camera_frame') # kinect_optical_frame for ubot, /r2/head/asus_depth_optical_frame for r2
+        # print "camera_frame", camera_frame
+        # self.data_monster.set_frame(camera_frame)
         # set a lower minimum box width to handle objects further away
         self.data_monster.input_manager.set_min_box_width(50)
         # the percentage of margin added to min max box

@@ -667,6 +667,8 @@ class DataMonster:
             filter_xy = self.get_filter_avg_xy(layer_data, threshold)
         elif False:
             filter_xy = self.get_filter_avg_xy_square(layer_data, threshold)
+        elif False:
+            filter_xy = self.get_filter_avg_xy_thresholded(layer_data, threshold)
         else:
             filter_xy = self.get_filter_max_xy(layer_data, threshold)
         orig_xy = self.get_orig_xy(filter_xy, resize_ratio)
@@ -703,7 +705,7 @@ class DataMonster:
             if not self.filter_response_pass_threshold(conv5_data[filter_idx_5], self.ds.thres_conv5_test):
                 continue
 
-            conv4_data, img_src_5 = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
+            conv4_data, img_src_5, _ = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
             xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(img_src_5, data.pc, 0)
             response_dict[(filter_idx_5,)] = self.get_max_filter_response(conv5_data[filter_idx_5])
 
@@ -727,7 +729,7 @@ class DataMonster:
             if not self.filter_response_pass_threshold(conv4_data[filter_idx_4], self.ds.thres_conv4_test):
                 continue
 
-            conv3_data, img_src_4 = self.load_layer_fix_filter('conv3', 'conv4', conv4_data, data, filter_idx_4)
+            conv3_data, img_src_4, _ = self.load_layer_fix_filter('conv3', 'conv4', conv4_data, data, filter_idx_4)
             xyz_dict[(-1, filter_idx_4)], max_xy = self.get_filter_xyz(img_src_4, data.pc, 0)
             response_dict[(-1, filter_idx_4)] = self.get_max_filter_response(conv4_data[filter_idx_4])
 
@@ -749,7 +751,7 @@ class DataMonster:
             if not self.filter_response_pass_threshold(conv3_data[filter_idx_3], self.ds.thres_conv3_test):
                 continue
 
-            conv2_data, img_src_3 = self.load_layer_fix_filter('conv2', 'conv3', conv3_data, data, filter_idx_3)
+            conv2_data, img_src_3, _ = self.load_layer_fix_filter('conv2', 'conv3', conv3_data, data, filter_idx_3)
             xyz_dict[(-1, -1, filter_idx_3)], max_xy = self.get_filter_xyz(img_src_3, data.pc, 0)
             response_dict[(-1, -1, filter_idx_3)] = self.get_max_filter_response(conv3_data[filter_idx_3])
 
@@ -772,7 +774,7 @@ class DataMonster:
             if not self.filter_response_pass_threshold(conv3_data[filter_idx_2], self.ds.thres_conv2_test):
                 continue
 
-            conv1_data, img_src_2 = self.load_layer_fix_filter('conv1', 'conv2', conv2_data, data, filter_idx_2)
+            conv1_data, img_src_2, _ = self.load_layer_fix_filter('conv1', 'conv2', conv2_data, data, filter_idx_2)
             xyz_dict[(-1, -1, -1, filter_idx_2)], max_xy = self.get_filter_xyz(img_src_2, data.pc, 0)
             response_dict[(-1, -1, -1, filter_idx_2)] = self.get_max_filter_response(conv2_data[filter_idx_2])
 
@@ -802,7 +804,7 @@ class DataMonster:
             if not self.filter_response_pass_threshold(conv5_data[filter_idx_5], self.ds.thres_conv5_test):
                 continue
 
-            conv4_diff, img_src_5 = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
+            conv4_diff, img_src_5, _ = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
             if not self.ds.tbp_test:
                 conv4_diff = conv4_data
             xyz_dict[(filter_idx_5,)], max_xy = self.get_filter_xyz(img_src_5, data.pc, 0)
@@ -823,7 +825,7 @@ class DataMonster:
                 if not self.filter_response_pass_threshold(conv4_diff[filter_idx_4], self.ds.thres_conv4_test):
                     continue
 
-                conv3_diff, img_src_4 = self.load_layer_fix_filter('conv3', 'conv4', conv4_diff, data, filter_idx_4)
+                conv3_diff, img_src_4, _ = self.load_layer_fix_filter('conv3', 'conv4', conv4_diff, data, filter_idx_4)
                 if not self.ds.tbp_test:
                     conv3_diff = conv3_data
                 xyz_dict[(filter_idx_5, filter_idx_4)], max_xy = self.get_filter_xyz(img_src_4, data.pc, 0)
@@ -844,7 +846,7 @@ class DataMonster:
                     if not self.filter_response_pass_threshold(conv3_diff[filter_idx_3], self.ds.thres_conv3_test):
                         continue
 
-                    conv2_diff, img_src_3 = self.load_layer_fix_filter('conv2', 'conv3', conv3_diff, data, filter_idx_3)
+                    conv2_diff, img_src_3, _ = self.load_layer_fix_filter('conv2', 'conv3', conv3_diff, data, filter_idx_3)
                     if not self.ds.tbp_test:
                         conv2_diff = conv2_data
 
@@ -864,7 +866,7 @@ class DataMonster:
 
                         if not self.filter_response_pass_threshold(conv2_diff[filter_idx_2], self.ds.thres_conv2_test):
                             continue
-                        conv1_data, img_src_2 = self.load_layer_fix_filter('conv1', 'conv2', conv2_diff, data, filter_idx_2)
+                        conv1_data, img_src_2, _ = self.load_layer_fix_filter('conv1', 'conv2', conv2_diff, data, filter_idx_2)
                         xyz_dict[(filter_idx_5, filter_idx_4, filter_idx_3, filter_idx_2)], max_xy = self.get_filter_xyz(img_src_2, data.pc, 0)
                         response_dict[(filter_idx_5, filter_idx_4, filter_idx_3, filter_idx_2)] = self.get_max_filter_response(conv2_diff[filter_idx_2])
 
@@ -899,7 +901,7 @@ class DataMonster:
         for filter_idx_5 in filter_idx_5_list:
             print filter_idx_5
 
-            conv4_data, img_src_5 = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
+            conv4_data, img_src_5, img_src_5_color = self.load_layer_fix_filter('conv4', 'conv5', conv5_data, data, filter_idx_5)
             if self.ds.location_layer == "image":
                 loc_layer = img_src_5
             else:
@@ -912,11 +914,8 @@ class DataMonster:
             xy_dict[(filter_idx_5,)] = max_xy
 
             # visualize specific feature back propagation result
-            if False and filter_idx_5 in [81, 23]:
-                # imshow = cv2.resize(conv5_data[filter_idx_5], (227,227), interpolation = cv2.INTER_LINEAR)
-                imshow = img_src_5
-                cv2.imshow(str(idx) + "_" + str(filter_idx_5) + "_" + data.name, np.hstack((norm0255(imshow), data.img[:,:,0])))
-                cv2.waitKey(200)
+            if True and filter_idx_5 in [23, 60]:
+                self.show_grad_compare(str(idx) + "_" + str(filter_idx_5) + "_" + data.name, img_src_5_color, data, max_xy)
 
             response_dict[(filter_idx_5,)] = self.get_max_filter_response(conv5_data[filter_idx_5])
 
@@ -933,7 +932,7 @@ class DataMonster:
             for filter_idx_4 in filter_idx_4_list:
                 print filter_idx_5, filter_idx_4
 
-                conv3_data, img_src_4 = self.load_layer_fix_filter('conv3', 'conv4', conv4_data, data, filter_idx_4)
+                conv3_data, img_src_4, img_src_4_color = self.load_layer_fix_filter('conv3', 'conv4', conv4_data, data, filter_idx_4)
                 if self.ds.location_layer == "image":
                     loc_layer = img_src_4
                 else:
@@ -947,11 +946,8 @@ class DataMonster:
                 response_dict[(filter_idx_5, filter_idx_4)] = self.get_max_filter_response(conv4_data[filter_idx_4])
 
                 # visualize specific feature back propagation result
-                if False and [filter_idx_5, filter_idx_4] in [[81,96],[23,60]]:
-                    # imshow = cv2.resize(conv4_data[filter_idx_4], (227,227), interpolation = cv2.INTER_LINEAR)
-                    imshow = img_src_4
-                    cv2.imshow(str(idx) + "_" + str(filter_idx_5) + str(filter_idx_4) + "_" + data.name, np.hstack((norm0255(imshow),data.img[:,:,0])))
-                    cv2.waitKey(200)
+                if True and [filter_idx_5, filter_idx_4] in [[23,4],[23,60]]: #[81,96]
+                    self.show_grad_compare(str(idx) + "_" + str(filter_idx_5) + "," + str(filter_idx_4) + "_" + data.name, img_src_4_color, data, max_xy)
 
                 self.show_gradient(str((filter_idx_5, filter_idx_4)), self.net.blobs['data'], max_xy, 0)
 
@@ -966,7 +962,7 @@ class DataMonster:
                 for filter_idx_3 in filter_idx_3_list:
                     print filter_idx_5, filter_idx_4, filter_idx_3
 
-                    conv2_data, img_src_3 = self.load_layer_fix_filter('conv2', 'conv3', conv3_data, data, filter_idx_3)
+                    conv2_data, img_src_3, img_src_3_color = self.load_layer_fix_filter('conv2', 'conv3', conv3_data, data, filter_idx_3)
                     if self.ds.location_layer == "image":
                         loc_layer = img_src_3
                     else:
@@ -983,6 +979,16 @@ class DataMonster:
 
         return xyz_dict, xy_dict, response_dict
 
+    def show_grad_compare(self, name, img_src_color, data, max_xy):
+        grad_img = norm0255(img_src_color[:,:,(2,1,0)])
+        img = data.img[:,:,(2,1,0)]
+
+        for i in range(-3,3):
+            for j in range(-3,3):
+                grad_img[max_xy[0]+i][max_xy[1]+j] = [0,0,255]
+
+        cv2.imshow(name, np.concatenate((grad_img, img), axis = 1))
+        cv2.waitKey(200)
 
     def show_depth(self, name, layer_data, pc):
 
@@ -1036,6 +1042,7 @@ class DataMonster:
         back_filt_mode = 'raw'#'norm'#
         if back_filt_mode == 'raw':
             grad_img = norm01c(grad_img, 0)
+            # grad_img = fix01(grad_img)
         elif back_filt_mode == 'gray':
             grad_img = grad_img.mean(axis=2)
             grad_img = norm01c(grad_img, 0)
@@ -1047,18 +1054,14 @@ class DataMonster:
             cv2.GaussianBlur(grad_img, (0,0), self.settings.caffevis_grad_norm_blur_radius, grad_img)
             grad_img = norm01(grad_img)
 
-
-
         # If necessary, re-promote from grayscale to color
         if len(grad_img.shape) == 2:
             grad_img = np.tile(grad_img[:,:,np.newaxis], 3)
 
-
         if not np.isnan(xy_dot[0]) and not np.isnan(xy_dot[1]):
-            for i in range(-8,8):
-                for j in range(-8,8):
+            for i in range(-3,3):
+                for j in range(-3,3):
                     grad_img[i+xy_dot[0],j+xy_dot[1]] = [1,0,0]
-
 
         # if not np.isnan(xy_dot2[0]) and not np.isnan(xy_dot2[1]):
         #     for i in range(-3,3):
@@ -1112,6 +1115,30 @@ class DataMonster:
 
     def get_filter_avg_xy(self, filter_response, threshold):
         # print "max", np.amax(filter_response)
+        assert np.all(filter_response >= 0)
+        # if self.back_mode == 'grad':
+        #     filter_response = np.maximum(filter_response,0) #TODO: check if necessary
+        # elif self.back_mode == 'deconv':
+        #     filter_response = np.abs(filter_response)
+        assert filter_response.ndim == 2, "filter size incorrect"
+
+        max_value = np.amax(filter_response)
+        if max_value <= threshold:
+            return np.array([float('nan'),float('nan')])
+
+        xy_grid = np.mgrid[0:filter_response.shape[0], 0:filter_response.shape[0]]
+
+        if np.sum(filter_response) == 0:
+            return np.array([float('nan'),float('nan')])
+
+        filter_response_norm = filter_response / float(np.sum(filter_response))
+        avg_x = np.sum(xy_grid[0] * filter_response_norm)
+        avg_y = np.sum(xy_grid[1] * filter_response_norm)
+
+        return np.around(np.array([avg_x, avg_y])).astype(int)
+
+    def get_filter_avg_xy_thresholded(self, filter_response, threshold):
+        # print "max", np.amax(filter_response)
         filter_response = np.maximum(filter_response,0) #TODO: check if necessary
         assert filter_response.ndim == 2, "filter size incorrect"
 
@@ -1123,6 +1150,8 @@ class DataMonster:
 
         if np.sum(filter_response) == 0:
             return np.array([float('nan'),float('nan')])
+
+        filter_response[filter_response < max_value * 0.8] = 0
 
         filter_response_norm = filter_response / float(np.sum(filter_response))
         avg_x = np.sum(xy_grid[0] * filter_response_norm)
@@ -1369,17 +1398,17 @@ class DataMonster:
             self.net.backward_from_layer(backprop_layer, diffs, zero_higher = True)
         else:
             self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
-
-    def net_proc_deconv_with_data(self, filter_idx, data, backprop_layer):
-
-        diffs = self.net.blobs[backprop_layer].diff * 0
-        if self.ds.backprop_xy == 'sin':
-            x,y = np.unravel_index(np.argmax(data[filter_idx]), data[filter_idx].shape)
-            diffs[0][filter_idx][x][y] = data[filter_idx][x][y]
-        elif self.ds.backprop_xy == 'all':
-            diffs[0][filter_idx] = data[filter_idx]
-        assert self.back_mode in ('grad', 'deconv')
-        self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
+    #
+    # def net_proc_deconv_with_data(self, filter_idx, data, backprop_layer):
+    #
+    #     diffs = self.net.blobs[backprop_layer].diff * 0
+    #     if self.ds.backprop_xy == 'sin':
+    #         x,y = np.unravel_index(np.argmax(data[filter_idx]), data[filter_idx].shape)
+    #         diffs[0][filter_idx][x][y] = data[filter_idx][x][y]
+    #     elif self.ds.backprop_xy == 'all':
+    #         diffs[0][filter_idx] = data[filter_idx]
+    #     assert self.back_mode in ('grad', 'deconv')
+    #     self.net.deconv_from_layer(backprop_layer, diffs, zero_higher = True)
 
     def get_orig_xy(self, xy, resize_ratio):
         if np.isnan(xy[0]) or np.isnan(xy[1]):
@@ -1519,7 +1548,7 @@ class DataMonster:
             print idx,
             sys.stdout.flush()
             self.net_proc_forward_layer(data.img, data.mask)
-            layer_diff_list[idx,:], img_src_list[idx,:] = self.load_layer_fix_filter(load_layer, fix_layer, fix_layer_data_list[idx], data, filter_idx)
+            layer_diff_list[idx,:], img_src_list[idx,:], _ = self.load_layer_fix_filter(load_layer, fix_layer, fix_layer_data_list[idx], data, filter_idx)
 
         return layer_diff_list, img_src_list
 
@@ -1529,17 +1558,20 @@ class DataMonster:
         #self.net_proc_forward_layer(data.img, data.mask)
         self.net_proc_backward_with_data(filter_idx, fix_layer_diff, fix_layer)
         layer_diff = self.net.blobs[load_layer].diff[0,:]
-
-        # mean is to average over all filters
+        img_src_color = self.net.blobs['data'].diff[0,:].transpose((1,2,0))
+        # mean is to average over all filters (RGB)
         if self.ds.img_src_loc == "absolute":
             img_src = np.absolute(self.net.blobs['data'].diff[0,:]).mean(axis=0)
         elif self.ds.img_src_loc == "relu":
             img_src = np.maximum(self.net.blobs['data'].diff[0,:],0).mean(axis=0)
+        elif self.ds.img_src_loc == "norm":
+            img_src = np.linalg.norm(self.net.blobs['data'].diff[0,:], axis=0)
         # make a copy
         layer_diff = copy.deepcopy(layer_diff)
         img_src = copy.deepcopy(img_src)
+        img_src_color = copy.deepcopy(img_src_color)
 
-        return layer_diff, img_src
+        return layer_diff, img_src, img_src_color
 
     # binaraizes such that output is a 1-d array where each entry is whether a filter fires, also ouputs the max value
     def binarize(self, data, threshold):

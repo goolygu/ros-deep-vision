@@ -21,7 +21,7 @@ def norm01c(arr, center):
     '''Maps the input range to [0,1] such that the center value maps to .5'''
     arr = arr.copy()
     arr -= center
-    arr /= max(2 * arr.max(), -2 * arr.min()) + 1e-10
+    arr = arr / (max(2 * arr.max(), -2 * arr.min()) + 1e-10)
     arr += .5
     assert arr.min() >= 0
     assert arr.max() <= 1

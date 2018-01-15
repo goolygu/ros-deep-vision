@@ -3,10 +3,11 @@
 
 class DataSettings:
     def __init__(self, case="tbp"):
+        self.case = case
         self.tbp = True
         self.tbp_str = 'tbp'
         # backprop with gradient or deconvolution
-        self.back_prop_mode = 'grad' # grad for gradient, deconv
+        self.back_prop_mode = 'deconv'# 'grad' #grad for gradient, deconv
 
         # how large of area should the mean xyz location be based on on the point cloud
         self.avg_pointcloud_width = 5
@@ -32,7 +33,7 @@ class DataSettings:
         self.input_width = 260
 
         # xy location on image plane based on absolute derivative or derivative above 0
-        self.img_src_loc = "relu" #"absolute"#
+        self.img_src_loc = "absolute"#"norm"#"relu"#
 
         # use mask centering if you want the image to be centered based on the mask. Use on cluttered dataset.
         self.mask_centering = True#False
@@ -68,7 +69,12 @@ class DataSettings:
         self.filter_low_n = -1
         self.tbp_test_str = ""
         self.tbp_test = True
+        iros_test = False
 
+        if iros_test:
+            self.back_prop_mode = 'grad'
+            self.img_src_loc = "relu"
+            self.backprop_xy = 'sin'
         # comparing 5 different cases with and without targeted backpropagation
         # note the following may overwrite settings above
         if case == "tbp" or case == "notbp-test":
