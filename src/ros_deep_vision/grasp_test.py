@@ -7,7 +7,7 @@ import os
 import dataset_list as dl
 from data_settings import DataSettings
 from data_monster import *
-
+from data_sheep import *
 import settings
 
 if __name__ == '__main__':
@@ -20,13 +20,14 @@ if __name__ == '__main__':
     # case = "single-conv5"
     ds = DataSettings(case)
     tbp = ds.tbp
-    data_monster = DataMonster(settings, ds)
+    # data_monster = DataMonster(settings, ds)
+    data_monster = DataSheep(settings, ds)
 
     train_path = "/home/lku/Dataset/r2_grasping_dataset/single/"
     clutter_dataset_path = "/home/lku/Dataset/r2_grasping_dataset/clutter/"
 
     data_monster.set_train_path(train_path)
-    mode = 4
+    mode = 1
 
     dist_path = settings.ros_dir + '/distribution/'
 
@@ -42,12 +43,12 @@ if __name__ == '__main__':
         distribution = Distribution()
         case1 = '[side_wrap:cylinder]'
         case2 = '[side_wrap:cuboid]'
-        distribution.load(dist_path + '/cross_validation/', case1 + '[leave_yellowjar]' + name)
+        distribution.load(dist_path + '/cross_validation/', case2 + '[leave_brillobox]' + name)
 
         distribution = data_monster.filter_distribution(distribution, ds.filter_low_n)
 
         data_monster.input_manager.set_visualize(True)
-        data_list = [data_monster.input_manager.get_data_by_name(train_path,dl.data_name_list[112])]
+        data_list = [data_monster.input_manager.get_data_by_name(train_path,dl.data_name_list[20])]
         diff_avg_dic, diff_dist_dic, diff_fail = data_monster.test_accuracy(distribution, data_list, tbp)
         print diff_dist_dic
 
@@ -84,11 +85,11 @@ if __name__ == '__main__':
 
     # test cluttered scenario
     elif mode == 6:
-        data_monster.visualize = False#True
-        data_monster.show_backprop = False
+        data_monster.set_visualize(True)#False#True
+        data_monster.show_backprop = True#False
         case1 = 'side_wrap:cylinder'
         case2 = 'side_wrap:cuboid'
 
-        data_monster.test_clutter(settings.ros_dir, clutter_dataset_path, name, tbp, [case1, case2], None)
+        data_monster.test_clutter(settings.ros_dir, clutter_dataset_path, name, tbp, [case1, case2], None)#14)#
     print "done"
     raw_input()

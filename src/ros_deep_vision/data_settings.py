@@ -4,6 +4,7 @@
 class DataSettings:
     def __init__(self, case="tbp"):
         self.case = case
+        print "datasetting case", case
         self.tbp = True
         self.tbp_str = 'tbp'
         # backprop with gradient or deconvolution

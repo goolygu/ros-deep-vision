@@ -23,14 +23,14 @@ class CNNStateManager:
 
         self.data_monster = DataSheep(settings, ds)
         # self.data_monster = DataMonster(settings, ds)
-        self.data_monster.set_visualize(True)
+        self.data_monster.set_visualize(True,show_backprop= False)
         self.observe_path = settings.ros_dir + '/current/'
 
         # self.data_monster.set_train_path(self.observe_path)
 
         self.data_collector = DataCollector(self.observe_path)
 
-        self.data_monster.net.show_backprop = False#True#
+        # self.data_monster.net.show_backprop = False#True#
         self.max_clusters = 3
         # camera_frame = rospy.get_param('~camera_frame') # kinect_optical_frame for ubot, /r2/head/asus_depth_optical_frame for r2
         # print "camera_frame", camera_frame

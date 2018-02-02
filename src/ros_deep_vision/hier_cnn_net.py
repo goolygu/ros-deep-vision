@@ -182,7 +182,7 @@ class HierCNNNet:
             response_dict[filter_id] = self.get_max_filter_response(conv_data[filter_idx])
             xy_dict[filter_id] = max_xy
 
-            if True and filter_id in [(23,), (23,60,)]:
+            if False and filter_id in [(23,), (23,60,)]:
                 self.show_grad_compare(str(idx) + "_" + str(filter_id) + "_" + data.name, img_src_color, data, max_xy)
 
             self.show_gradient(str(filter_id), self.net.blobs['data'], max_xy, 0)
@@ -235,6 +235,8 @@ class HierCNNNet:
 
         cv2.imshow(name, np.concatenate((grad_img, img), axis = 1))
         cv2.waitKey(200)
+        # save image
+        # cv2.imwrite(os.path.join(os.path.expanduser('~'), name + ".png"), np.concatenate((grad_img, img), axis = 1))
 
     def show_gradient(self, name, data_layer, xy_dot=(0,0), threshold=0):
         if not self.visualize or not self.show_backprop:

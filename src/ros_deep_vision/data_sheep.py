@@ -56,9 +56,10 @@ class DataSheep:
         self.set_visualize(True)
         self.net.show_backprop = True
 
-    def set_visualize(self, visualize):
+    def set_visualize(self, visualize, show_backprop=False):
         self.visualize = visualize
         self.net.visualize = visualize
+        self.net.show_backprop = show_backprop
 
     def set_data_settings(self, data_settings):
 

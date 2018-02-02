@@ -117,6 +117,10 @@ class DataMonster:
         self.average_grid = np.mgrid[-w:w,-w:w]
         self.input_manager = InputManager(self.ds, self.input_dims)
 
+    def set_visualize(self, visualize, show_backprop=False):
+        self.visualize = visualize
+        self.show_backprop = show_backprop
+
     def set_frame(self, frame):
         self.visualizer.set_frame(frame)
 

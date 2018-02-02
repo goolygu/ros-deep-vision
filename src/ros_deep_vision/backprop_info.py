@@ -28,6 +28,10 @@ class BackPropInfo:
             # self.top_n_filters['conv5'] = 30
             # self.top_n_filters['conv4'] = 5
             # self.top_n_filters['conv3'] = 0
+        elif case == 'cnn_features':
+            self.num_filters['conv5'] = 10
+            self.num_filters['conv4'] = 5
+            self.num_filters['conv3'] = 0
         else:
             raise NotImplementedError("[Error] backprop info no such case" + case)
 
