@@ -21,9 +21,14 @@ class BackPropInfo:
             # self.top_n_filters['conv4'] = 5
             # self.top_n_filters['conv3'] = 5
         elif case == 'r2_demo':
-            self.num_filters['conv5'] = 30
-            self.num_filters['conv4'] = 5
-            self.num_filters['conv3'] = 0
+            if False:
+                self.num_filters['conv5'] = 10#20#30 #20
+                self.num_filters['conv4'] = 10#5 #10
+                self.num_filters['conv3'] = 5#0
+            else:
+                self.num_filters['conv5'] = 30 #20
+                self.num_filters['conv4'] = 0
+                self.num_filters['conv3'] = 0
             # testing pick top n filters
             # self.top_n_filters['conv5'] = 30
             # self.top_n_filters['conv4'] = 5

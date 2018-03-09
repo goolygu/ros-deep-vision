@@ -44,10 +44,10 @@ class DataSheep:
 
     def __init__(self, settings, data_settings):
         print 'initialize'
-        self.settings = settings
 
         self.visualizer = Visualizer()
-        self.visualizer.set_frame("/r2/head/asus_depth_optical_frame")
+        # self.visualizer.set_frame("/r2/head/asus_depth_optical_frame")
+        self.visualizer.set_frame("/r2/cal_asus_frame")
         self.visualizer.set_topics(['grasp_distribution', 'feature', "grasp_target"])
 
         self.net = HierCNNNet(settings, data_settings)

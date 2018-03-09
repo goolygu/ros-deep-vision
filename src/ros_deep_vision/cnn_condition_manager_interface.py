@@ -14,6 +14,7 @@ from distribution import *
 import time
 from cnn_state_manager import *
 from umass_atg.classes.condition import *
+from umass_atg.classes.types import *
 from umass_atg.pose_state_manager import *
 import tf
 import rospkg
@@ -21,30 +22,25 @@ import rospkg
 class CNNConditionManagerInterface:
     def __init__(self, settings):
 
-        replay_dir = None
+        replay_pkg = "ros_deep_vision"
 
-        if rospy.has_param("~replay_data"):
-            replay_data = rospy.get_param("~replay_data")
-            rospy.delete_param("~replay_data")
-            print "replay_data: ", replay_data
+        if rospy.has_param("~replay_pkg"):
+            replay_pkg = rospy.get_param("~replay_pkg")
+            rospy.delete_param("~replay_pkg")
 
-            if replay_data == "no_replay":
-                replay_dir = None
-                # self.replay_mode = False
-                # self.mode = "default"
-            else:
-                rospack = rospkg.RosPack()
-                replay_dir = rospack.get_path(replay_data) + "/current/"
-                # self.replay_mode = True
-                # self.mode = "replay"
+        print "replay_pkg: ", replay_pkg
 
-        # if rospy.has_param("~mode"):
-        #     mode = rospy.get_param("~mode")
-        #     rospy.delete_param("~mode")
-        #     print "mode: ", mode
-        #     self.mode = mode
+        replay_folder = "current"
+        if rospy.has_param("~replay_folder"):
+            replay_folder = rospy.get_param("~replay_folder")
+            rospy.delete_param("~replay_folder")
 
-        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", replay_dir=replay_dir)
+        print "replay_folder: ", replay_folder
+
+        rospack = rospkg.RosPack()
+        replay_dir = rospack.get_path(replay_pkg)# + "/" + replay_folder + "/"
+
+        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", replay_dir=replay_dir, replay_folder=replay_folder)
         # self.cnn_state_manager.set_box_param(200, 0, 15)
         # self.cnn_state_manager.set_box_param(185, 0, 15, 185)
         self.cnn_state_manager.set_box_param(200, 0, 15, 200, left_hand_offset=True)
@@ -58,67 +54,75 @@ class CNNConditionManagerInterface:
         self.tf_listener = tf.TransformListener()
         self.pose_state_manager.set_tf_listener(self.tf_listener)
 
+    def create_aspect(self, value_dic, xyz_dic, xy_dic, img_name):
+
+        aspect = Aspect()
+        aspect_pose = AspectPose()
+
+        # for aspect
+        state_list = []
+        pose_dic = Dic2()
+        # for aspect_pose
+        state_type_list = []
+        state_name_list = []
+        pose_list = []
+        xy_list = []
+
+        # loop through each feature
+        for sig in value_dic:
+            state = State()
+            state.type = 'cnn'
+            state.name = str(sig)
+            state.value = value_dic[sig]
+            state_list.append(state)
+
+            state_type_list.append(state.type)
+            state_name_list.append(state.name)
+
+            pose_msg = Pose()
+            xy_msg = Point()
+            if not state.value == 0:
+                pose_msg.position.x = xyz_dic[sig][0]
+                pose_msg.position.y = xyz_dic[sig][1]
+                pose_msg.position.z = xyz_dic[sig][2]
+                pose_msg.orientation.x = 0
+                pose_msg.orientation.y = 0
+                pose_msg.orientation.z = 0
+                pose_msg.orientation.w = 1
+                xy_msg.x = xy_dic[sig][0]
+                xy_msg.y = xy_dic[sig][1]
+                xy_msg.z = 0.
+            pose_list.append(pose_msg)
+            xy_list.append(xy_msg)
+            pose_dic.add(state.type, state.name, pose_msg)
+
+        pose_state_list = self.pose_state_manager.get_pose_state(pose_dic)
+        aspect.set_state_list(state_list)
+        aspect.set_pose_state_list(pose_state_list)
+        aspect.set_img_src(img_name)
+
+        aspect_pose.set(state_type_list, state_name_list, pose_list, xy_list)
+
+        return aspect, aspect_pose
+
     # list of Dic2 of value, list of Dic2 of xyz, list of vector
-    def create_condition(self, value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name):
+    def create_condition(self, cnn_list_state):#value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name):
         condition = Condition()
-        condition.name = name
+        condition.name = cnn_list_state.name
         # loop through aspects
-        for i, value_dic in enumerate(value_dic_list):
+        for i, value_dic in enumerate(cnn_list_state.value_dic_list):
 
-            xyz_dic = xyz_dic_list[i]
-            xy_dic = xy_dic_list[i]
-            aspect = Aspect()
-            aspect_pose = AspectPose()
+            xyz_dic = cnn_list_state.xyz_dic_list[i]
+            xy_dic = cnn_list_state.xy_dic_list[i]
+            img_name = cnn_list_state.img_name_list[i].split("/")[-1]
 
-            # for aspect
-            state_list = []
-            pose_dic = Dic2()
-            # for aspect_pose
-            state_type_list = []
-            state_name_list = []
-            pose_list = []
-            xy_list = []
-
-            # loop through each feature
-            for sig in value_dic:
-                state = State()
-                state.type = 'cnn'
-                state.name = str(sig)
-                state.value = value_dic[sig]
-                state_list.append(state)
-
-                state_type_list.append(state.type)
-                state_name_list.append(state.name)
-
-                pose_msg = Pose()
-                xy_msg = Point()
-                if not state.value == 0:
-                    pose_msg.position.x = xyz_dic[sig][0]
-                    pose_msg.position.y = xyz_dic[sig][1]
-                    pose_msg.position.z = xyz_dic[sig][2]
-                    pose_msg.orientation.x = 0
-                    pose_msg.orientation.y = 0
-                    pose_msg.orientation.z = 0
-                    pose_msg.orientation.w = 1
-                    xy_msg.x = xy_dic[sig][0]
-                    xy_msg.y = xy_dic[sig][1]
-                    xy_msg.z = 0.
-                pose_list.append(pose_msg)
-                xy_list.append(xy_msg)
-                pose_dic.add(state.type, state.name, pose_msg)
-
-            pose_state_list = self.pose_state_manager.get_pose_state(pose_dic)
-            aspect.set_state_list(state_list)
-            aspect.set_pose_state_list(pose_state_list)
-            aspect.set_img_src(img_name_list[i].split("/")[-1])
-
-            aspect_pose.set(state_type_list, state_name_list, pose_list, xy_list)
+            aspect, aspect_pose = self.create_aspect(value_dic, xyz_dic, xy_dic, img_name)
 
             condition.aspect_name_list.append(aspect.img_src)
             condition.aspect_list.append(aspect)
             condition.aspect_pose_list.append(aspect_pose)
 
-        for centroid in centroid_list:
+        for centroid in cnn_list_state.centroid_list:
             point = Point()
             point.x = centroid[0]
             point.y = centroid[1]
@@ -127,39 +131,76 @@ class CNNConditionManagerInterface:
 
         return condition
 
-    def get_clustered_cnn_list_state(self):
-        print "got request, mode", self.req.mode
-        req = self.req
+    def get_cnn_condition(self, req):
+        print "got request, mode", req.mode
 
         self.cnn_state_manager.set_mode(req.mode)
         self.pose_state_manager.set_mode(req.mode)
+        cnn_req = CNNStateRequest()
+
+        if req.mode == "replay":
+            print "replay"
+            cnn_req.data_name = req.expected_condition.name
+            cnn_list_state = self.cnn_state_manager.get_clustered_cnn_list_state(cnn_req)
 
         # no expectation on what will observe
-        if req.expected_condition.name == "None":
-            value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = self.cnn_state_manager.get_clustered_cnn_list_state(None,None)
+        elif req.expected_condition.name == "None":
+            print "default"
+            cnn_list_state = self.cnn_state_manager.get_clustered_cnn_list_state(cnn_req)
         # refining
-        elif req.expected_condition.name == "":
-            value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = \
-            self.cnn_state_manager.get_clustered_cnn_list_state(req.expected_condition.aspect_list, req.aspect_idx_list,use_last_observation=True, data_name=req.expected_condition.name)
+        elif req.expected_condition.name == "" and len(req.aspect_idx_list) > 0:
+            print "refine"
+            cnn_req.expected_aspect_list = req.expected_condition.aspect_list
+            cnn_req.aspect_idx_list = req.aspect_idx_list
+            cnn_req.use_last_observation = True
+            cnn_req.data_name = req.expected_condition.name
+            cnn_req.mode = "refine"
+            cnn_list_state = self.cnn_state_manager.get_clustered_cnn_list_state(cnn_req)
+
+        # refine action
+        elif not req.expected_condition is None:
+            print "refine action"
+            cnn_req.expected_aspect_list = req.expected_condition.aspect_list
+            cnn_req.use_last_observation = False
+            cnn_req.mode = "refine_action"
+            cnn_list_state = self.cnn_state_manager.get_clustered_cnn_list_state(cnn_req)
         # replay
         else:
-            value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name = \
-            self.cnn_state_manager.get_clustered_cnn_list_state(None, None, data_name=req.expected_condition.name)
+            print "unknow situation"
 
-        resp = GetConditionResponse()
+        # resp = GetConditionResponse()
 
         # condition = Condition()
         # condition.set(value_dic_list, xyz_dic_list, centroid_list, img_name_list)
-        condition = self.create_condition(value_dic_list, xyz_dic_list, xy_dic_list, centroid_list, img_name_list, name)
-        resp.condition = condition.to_ros_msg()
-        self.resp = resp
+        condition = self.create_condition(cnn_list_state)
+
+        # only keep most similar aspect
+        if cnn_req.mode == "refine_action":
+            actor_aspect = Aspect()
+            actor_aspect.from_ros_msg(cnn_req.expected_aspect_list[0])
+            max_prob = -sys.float_info.max
+            max_idx = None
+            for i, aspect in enumerate(condition.aspect_list):
+                sim_log_prob = actor_aspect.log_appearance_similarity(aspect)
+                if max_prob < sim_log_prob:
+                    max_prob = sim_log_prob
+                    max_idx = i
+            condition.keep_idx(max_idx)
+
+
+        return condition
+        # resp.condition = condition.to_ros_msg()
+        # self.resp = resp
 
     # a hack, for some reason cnn is slow in ros handler
     def loop(self):
 
         while not rospy.is_shutdown():
             if self.called == True:
-                self.get_clustered_cnn_list_state()
+                condition = self.get_cnn_condition(self.req)
+                resp = GetConditionResponse()
+                resp.condition = condition.to_ros_msg()
+                self.resp = resp
                 self.called = False
             rospy.sleep(0.1)
 

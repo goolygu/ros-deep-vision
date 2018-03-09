@@ -1,5 +1,6 @@
 
 from distribution import *
+import numpy as np
 
 def closest_value(mat, p_x, p_y):
     min_dist = 1000000;
@@ -64,6 +65,76 @@ def closest_pc_value_fast(pc, p_x, p_y, max_width):
         if x == y or (x < 0 and x == -y) or (x > 0 and x == 1-y):
             dx, dy = -dy, dx
         x, y = x+dx, y+dy
+
+def closest_pc_value_adjust_fast(pc, p_x, p_y, max_width):
+    # create a sprial see http://stackoverflow.com/questions/398299/looping-in-a-spiral
+
+    if np.isnan(p_x) or np.isnan(p_y):
+        return [float('nan'), float('nan'), float('nan')]
+
+    p_x = int(p_x)
+    p_y = int(p_y)
+
+    X = max(pc.shape[0] - p_x, p_x)*2
+    Y = max(pc.shape[1] - p_y, p_y)*2
+    x = y = 0
+    dx = 0
+    dy = -1
+    x_cord = 0
+    y_cord = 0
+
+    for i in range(max(X, Y)**2):
+
+        best_point_val = None
+        closest_dist = 100000
+
+        if (-X/2 < x <= X/2) and (-Y/2 < y <= Y/2):
+            # print (x, y),
+            if abs(x) > max_width or abs(y) > max_width:
+                return [float('nan'), float('nan'), float('nan')]
+            x_cord, y_cord = x+p_x, y+p_y
+
+            point = pc[x_cord, y_cord]
+            if x_cord >= 0 and x_cord < pc.shape[0] and y_cord >=0 and y_cord < pc.shape[1] and not (np.isnan(point[0]) or np.isnan(point[1]) or np.isnan(point[2]) ):
+                dist = np.linalg.norm(pc[x_cord, y_cord])
+                if dist < closest_dist:
+                    # print x_cord, y_cord, pc[x_cord, y_cord]
+                    best_point_val = pc[x_cord, y_cord].tolist()
+                    closest_dist = dist
+
+        if not best_point_val is None:
+            return best_point_val
+
+        if x == y or (x < 0 and x == -y) or (x > 0 and x == 1-y):
+            dx, dy = -dy, dx
+        x, y = x+dx, y+dy
+
+def closest_pc_value_adjust(pc, p_x, p_y, max_width):
+    # create a sprial see http://stackoverflow.com/questions/398299/looping-in-a-spiral
+
+    if np.isnan(p_x) or np.isnan(p_y):
+        return [float('nan'), float('nan'), float('nan')]
+
+    p_x = int(round(p_x))
+    p_y = int(round(p_y))
+    best_cost = 100000
+    best_point_val = None
+    for x in range(-max_width, max_width+1):
+        for y in range(-max_width, max_width+1):
+            x_cord, y_cord = x+p_x, y+p_y
+            point = pc[x_cord, y_cord]
+            if x_cord >= 0 and x_cord < pc.shape[0] and y_cord >=0 and y_cord < pc.shape[1] and not (np.isnan(point[0]) or np.isnan(point[1]) or np.isnan(point[2]) ):
+                dist = np.linalg.norm(point)
+                # xy_dist = ((x**2 + y**2)**0.5)*0.01
+                cost = dist# + xy_dist
+                if cost < best_cost:
+                    # print x_cord, y_cord, pc[x_cord, y_cord]
+                    best_point_val = pc[x_cord, y_cord].tolist()
+                    best_cost = cost
+    if best_point_val == None:
+        return [float('nan'), float('nan'), float('nan')]
+    else:
+        return best_point_val
 
 def state_list_to_dist(state_list):
     dist = Distribution()

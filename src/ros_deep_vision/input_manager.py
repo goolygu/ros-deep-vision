@@ -203,13 +203,10 @@ class InputManager:
         a = np.asarray(p)
         return a
 
-    def load_img_mask_pc_seg(self, data, path, item_num):
-
-        mask_name = path + data.name + "_item" + str(item_num) + "_mask.png"
+    def load_mask(self, mask_name):
         mask = cv2.imread(mask_name)
         if mask is None:
-            print "[ERROR] No mask"
-            return None, None
+            raise IOError("no mask file")
         mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
         if self.ds.mask_centering:
             center = self.get_mask_center(mask)
@@ -220,16 +217,25 @@ class InputManager:
         mask = self.crop(mask)
         mask = cv2.resize(mask, self.input_dims)
 
+        return mask
 
-        img_name = path + data.name + "_rgb.png"
+    def load_img(self, img_name):
         img = cv2_read_file_rgb(img_name)
         if img is None:
-            print "[ERROR] No image"
-            return None, None
-
+            raise IOError("no rgb image file")
 
         img = self.crop(img)
         img = cv2.resize(img, self.input_dims)
+        return img
+
+    def load_img_mask_pc_seg(self, data, path, item_num):
+
+        mask_name = path + data.name + "_item" + str(item_num) + "_mask.png"
+        mask = self.load_mask(mask_name)
+
+
+        img_name = path + data.name + "_rgb.png"
+        img = self.load_img(img_name)
 
         # load point cloud
         p = pcl.PointCloud()
@@ -255,30 +261,10 @@ class InputManager:
     def load_img_mask_pc(self, data, path):
 
         mask_name = path + data.name + "_mask.png"
-        mask = cv2.imread(mask_name)
-        if mask is None:
-            print "[ERROR] No mask"
-            return None, None
-        mask = np.reshape(mask[:,:,0], (mask.shape[0], mask.shape[1]))
-        if self.ds.mask_centering:
-            center = self.get_mask_center(mask)
-            self.set_center(center)
-
-        # print "crop", self.min_max_box
-
-        mask = self.crop(mask)
-        mask = cv2.resize(mask, self.input_dims)
-
+        mask = self.load_mask(mask_name)
 
         img_name = path + data.name + "_rgb.png"
-        img = cv2_read_file_rgb(img_name)
-        if img is None:
-            print "[ERROR] No image"
-            return None, None
-
-
-        img = self.crop(img)
-        img = cv2.resize(img, self.input_dims)
+        img = self.load_img(img_name)
 
         # load point cloud
         pc_array = self.get_point_cloud_array(path, data.name, self.ds.pointcloud)

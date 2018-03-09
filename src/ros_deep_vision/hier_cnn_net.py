@@ -127,9 +127,9 @@ class HierCNNNet:
 
     def get_filter_xyz(self, layer_data, pc, threshold):
         resize_ratio = float(pc.shape[0]) / float(layer_data.shape[0])
-        if True:
+        if False:
             filter_xy = self.get_filter_avg_xy(layer_data, threshold)
-        elif False:
+        elif True:
             filter_xy = self.get_filter_avg_xy_square(layer_data, threshold)
         elif False:
             filter_xy = self.get_filter_avg_xy_thresholded(layer_data, threshold)
@@ -182,7 +182,7 @@ class HierCNNNet:
             response_dict[filter_id] = self.get_max_filter_response(conv_data[filter_idx])
             xy_dict[filter_id] = max_xy
 
-            if False and filter_id in [(23,), (23,60,)]:
+            if False and filter_id in [(23, 177,), (23, 177, 152)]:# [(23, 28,), (23, 177,), (23, 60,)]:
                 self.show_grad_compare(str(idx) + "_" + str(filter_id) + "_" + data.name, img_src_color, data, max_xy)
 
             self.show_gradient(str(filter_id), self.net.blobs['data'], max_xy, 0)
@@ -594,7 +594,7 @@ class HierCNNNet:
         return np.mgrid[0:receptive_field_size,0:receptive_field_size]
 
     def get_closest_xyz_from_point_cloud(self, pc, xy, max_width):
-        return closest_pc_value_fast(pc,xy[0],xy[1],max_width)
+        return closest_pc_value_adjust(pc,xy[0],xy[1],max_width)
 
     def get_average_xyz_from_point_cloud(self, pc, xy, receptive_grid):
         if np.isnan(xy[0]):

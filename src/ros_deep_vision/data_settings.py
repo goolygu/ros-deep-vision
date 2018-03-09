@@ -169,7 +169,7 @@ class DataSettings:
             self.conv3_top = 0
             self.conv2_top = 0
             self.cnn_pose_state_match = 'top'
-            self.avg_pointcloud_width = 5
+            self.avg_pointcloud_width = 3
             self.xy_to_cloud_xyz = "closest"
             self.mask_centering = False
         else:
