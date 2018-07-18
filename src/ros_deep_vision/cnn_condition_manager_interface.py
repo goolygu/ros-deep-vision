@@ -40,7 +40,7 @@ class CNNConditionManagerInterface:
         rospack = rospkg.RosPack()
         replay_dir = rospack.get_path(replay_pkg)# + "/" + replay_folder + "/"
 
-        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_demo", replay_dir=replay_dir, replay_folder=replay_folder)
+        self.cnn_state_manager = CNNStateManager(settings, data_setting_case="r2_ratchet_demo", replay_dir=replay_dir, replay_folder=replay_folder)
         # self.cnn_state_manager.set_box_param(200, 0, 15)
         # self.cnn_state_manager.set_box_param(185, 0, 15, 185)
         self.cnn_state_manager.set_box_param(200, 0, 15, 200, left_hand_offset=True)

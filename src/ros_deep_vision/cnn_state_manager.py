@@ -104,12 +104,16 @@ class CNNStateManager:
     def get_box_list(self, data_name):
         box_min_max_list = []
         box_centroid_list = []
+        loaded = False
         for load_path in self.load_path_list:
             try:
                 box_f = open(load_path + data_name + "_box.txt", "r")
+                loaded = True
                 break
             except IOError:
                 continue
+        if not loaded:
+            print "cannot load " + data_name + "_box.txt" + " from " + load_path
         for box_str in box_f:
             box_str_list = box_str.rstrip('\n').split(",")
             box_min_max = [int(num) for num in box_str_list[0:4]]

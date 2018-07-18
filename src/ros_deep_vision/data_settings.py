@@ -20,6 +20,11 @@ class DataSettings:
         self.thres_conv3 = 0
         self.thres_conv2 = 0
 
+        self.frame_list_conv2 = []
+        self.frame_list_conv3 = []
+        self.frame_list_conv4 = []
+        self.frame_list_conv5 = []
+
         # whether to backprop all the way to the image to locate
         self.location_layer = "image" #"mid" #
 
@@ -168,6 +173,30 @@ class DataSettings:
             self.conv4_top = 5
             self.conv3_top = 0
             self.conv2_top = 0
+            self.cnn_pose_state_match = 'top'
+            self.avg_pointcloud_width = 3
+            self.xy_to_cloud_xyz = "closest"
+            self.mask_centering = False
+        elif case == "r2_ratchet_demo":
+            ratchet_mode = "fast"#"original"#"experiment"#
+            if ratchet_mode == "original":
+                self.conv5_top = 10
+                self.conv4_top = 10
+                self.conv3_top = 5
+                self.conv2_top = 0
+            elif ratchet_mode == "fast":
+                self.conv5_top = 30
+                self.conv4_top = 0
+                self.conv3_top = 0
+                self.conv2_top = 0
+            elif ratchet_mode == "experiment":
+                self.conv5_top = 10
+                self.conv4_top = 10
+                self.conv3_top = 0
+                self.conv2_top = 0
+            else:
+                print "no such ratchet mode"
+                raw_input()
             self.cnn_pose_state_match = 'top'
             self.avg_pointcloud_width = 3
             self.xy_to_cloud_xyz = "closest"

@@ -7,38 +7,15 @@ class BackPropInfo:
         self.layer_name_list = ['conv5', 'conv4', 'conv3', 'conv2', 'conv1']
         self.num_filters = {}
         self.frame_list = {}
-        case = data_settings.case
-        # self.top_n_filters = {}
-        if case == 'tbp':
-            # training pick top n consistent filters
-            self.num_filters['conv5'] = 5
-            self.num_filters['conv4'] = 5
-            self.num_filters['conv3'] = 5
-            self.frame_list['conv4'] = ["r2/left_palm"]
-            self.frame_list['conv3'] = ["r2/left_thumb_tip","r2/left_index_tip"]
-            # testing pick top n filters
-            # self.top_n_filters['conv5'] = 5
-            # self.top_n_filters['conv4'] = 5
-            # self.top_n_filters['conv3'] = 5
-        elif case == 'r2_demo':
-            if False:
-                self.num_filters['conv5'] = 10#20#30 #20
-                self.num_filters['conv4'] = 10#5 #10
-                self.num_filters['conv3'] = 5#0
-            else:
-                self.num_filters['conv5'] = 30 #20
-                self.num_filters['conv4'] = 0
-                self.num_filters['conv3'] = 0
-            # testing pick top n filters
-            # self.top_n_filters['conv5'] = 30
-            # self.top_n_filters['conv4'] = 5
-            # self.top_n_filters['conv3'] = 0
-        elif case == 'cnn_features':
-            self.num_filters['conv5'] = 10
-            self.num_filters['conv4'] = 5
-            self.num_filters['conv3'] = 0
-        else:
-            raise NotImplementedError("[Error] backprop info no such case" + case)
+        ds = data_settings
+
+        # training pick top n consistent filters
+        self.num_filters['conv5'] = ds.conv5_top
+        self.num_filters['conv4'] = ds.conv4_top
+        self.num_filters['conv3'] = ds.conv3_top
+        self.frame_list['conv5'] = ds.frame_list_conv5
+        self.frame_list['conv4'] = ds.frame_list_conv4
+        self.frame_list['conv3'] = ds.frame_list_conv3
 
     def get_layer_name(self):
         return self.layer_name_list[0]
